@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  NOVEL · ระบบคลังคำศัพท์นิยาย
+ *  SHVR · ระบบบันทึกการเยี่ยมบ้านนักเรียน
  *  File:        10_Menu.gs — Sheet menu UI + Setup helpers
  *  Version:     1.0.0
  *  Last Update: 2026-05-12
@@ -20,6 +20,7 @@ function onOpen() {
       .addItem('🔄 อัปเดต Schema (เพิ่ม field ใหม่)', 'menu_updateSchema')
       .addSeparator()
       .addItem('🌱 เพิ่มข้อมูลตัวอย่าง', 'menu_seedDemo')
+      .addItem('🧹 ล้างข้อมูลตัวอย่าง', 'menu_clearDemo')
       .addItem('🔁 รีเซ็ตรหัสผ่าน Demo', 'menu_resetDemoPasswords')
       .addSeparator()
       .addItem('🔥 ติดตั้ง Warm Trigger', 'menu_installWarm')
@@ -39,6 +40,8 @@ function menu_initSystem() {
     DB_initAllSchemas();
     Settings_ensureDefaults_();
     Seed_ensureUsers_();
+    const admin = DB_findOne(SHEETS.USERS, function (u) { return u.username === 'admin'; });
+    Seed_ensureStudents_(admin ? admin.id : '');
     ui.alert('✅ เริ่มใช้งานระบบสำเร็จ',
       'สร้าง schema + seed บัญชี + ข้อมูลตัวอย่างเรียบร้อย\n\n'
       + 'บัญชีทดลอง:\n'
@@ -107,6 +110,14 @@ function menu_seedDemo() {
   catch (e) { ui.alert('❌ ผิดพลาด', String(e), ui.ButtonSet.OK); }
 }
 
+function menu_clearDemo() {
+  const ui = SpreadsheetApp.getUi();
+  const res = ui.alert('ล้างข้อมูลตัวอย่าง', 'ลบนักเรียนตัวอย่าง (รหัส S67xxx) ทั้งหมด?', ui.ButtonSet.YES_NO);
+  if (res !== ui.Button.YES) return;
+  Seed_clearDemo();
+  ui.alert('✅ สำเร็จ', 'ลบข้อมูลตัวอย่างเรียบร้อย', ui.ButtonSet.OK);
+}
+
 function menu_resetDemoPasswords() {
   const ui = SpreadsheetApp.getUi();
   const res = ui.alert('รีเซ็ตรหัสผ่าน Demo', 'รีเซ็ต admin/director/academic/teacher เป็น 123456?', ui.ButtonSet.YES_NO);
@@ -119,6 +130,7 @@ function _warm_() {
   try {
     DB_readAll(SHEETS.SETTINGS);
     DB_readAll(SHEETS.USERS);
+    DB_readAll(SHEETS.STUDENTS);
   } catch (e) {}
   return new Date().toISOString();
 }

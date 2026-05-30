@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  NOVEL · ระบบคลังคำศัพท์นิยาย
+ *  SHVR · ระบบบันทึกการเยี่ยมบ้านนักเรียน
  *  File:        05_Files.gs — File upload to Drive (lh3 URL)
  *  Version:     1.0.0
  *  Last Update: 2026-05-12
@@ -10,11 +10,6 @@
  */
 
 function Files_folder_() {
-  if (APP.USE_MOCK_DATA) {
-    const rootName = APP.SHORT + '_Preview';
-    const rootFolders = DriveApp.getFoldersByName(rootName);
-    return rootFolders.hasNext() ? rootFolders.next() : DriveApp.createFolder(rootName);
-  }
   const settings = Settings_map_();
   const rootId = String(settings.drive_root_id || '').trim();
   if (rootId) {
@@ -61,33 +56,6 @@ function Files_subfolder_(name) {
   return folder;
 }
 
-function Files_nestedFolder_(pathText) {
-  const root = Files_folder_();
-  const rawPath = String(pathText || '').trim();
-  if (!rawPath) return root;
-
-  const normalized = rawPath.replace(/\\/g, '/').replace(/^\/+|\/+$/g, '');
-  if (!normalized) return root;
-
-  const cacheKey = 'driveFolder:path:' + root.getId() + ':' + normalized;
-  const props = PropertiesService.getScriptProperties();
-  const cachedId = String(props.getProperty(cacheKey) || '').trim();
-  if (cachedId) {
-    try { return DriveApp.getFolderById(cachedId); } catch (e) { props.deleteProperty(cacheKey); }
-  }
-
-  let current = root;
-  normalized.split('/').forEach(function (segment) {
-    const name = String(segment || '').trim();
-    if (!name) return;
-    const it = current.getFoldersByName(name);
-    current = it.hasNext() ? it.next() : current.createFolder(name);
-  });
-
-  try { props.setProperty(cacheKey, current.getId()); } catch (e) {}
-  return current;
-}
-
 function Files_year_folder_(year) {
   const root = Files_folder_();
   const folderName = year || 'Unknown_Year';
@@ -127,9 +95,7 @@ function Files_upload(user, p) {
   const blob = Utilities.newBlob(bytes, mime, p.name || ('upload_' + Date.now()));
   const sub = p.subfolder || 'uploads';
   let folder;
-  if (sub.indexOf('/') >= 0 || sub.indexOf('\\') >= 0) {
-    folder = Files_nestedFolder_(sub);
-  } else if (/^\d{4}$/.test(sub)) {
+  if (/^\d{4}$/.test(sub)) {
     folder = Files_year_folder_(sub);
   } else {
     folder = Files_subfolder_(sub);
@@ -146,50 +112,4 @@ function Files_upload(user, p) {
   const url = 'https://lh3.googleusercontent.com/d/' + id;
   Audit_log_(user, 'file.upload', 'file', id, { name: p.name, mime: mime, sub: sub });
   return { id: id, url: url, name: p.name || file.getName(), mime: mime, size: bytes.length };
-}
-
-function Files_createDoc(user, p) {
-  Auth_requireCap(user, 'file.upload');
-  p = p || {};
-  const title = String(p.title || '').trim();
-  const content = String(p.content || '').trim();
-  const sub = String(p.subfolder || 'docs').trim() || 'docs';
-  if (!title) throw new Error('กรุณาระบุชื่อเอกสาร');
-  if (!content) throw new Error('กรุณาวางเนื้อหานิยายก่อนบันทึก');
-
-  let folder;
-  if (sub.indexOf('/') >= 0 || sub.indexOf('\\') >= 0) {
-    folder = Files_nestedFolder_(sub);
-  } else if (/^\d{4}$/.test(sub)) {
-    folder = Files_year_folder_(sub);
-  } else {
-    folder = Files_subfolder_(sub);
-  }
-  const doc = DocumentApp.create(title);
-  const body = doc.getBody();
-  body.clear();
-
-  content.split(/\r?\n/).forEach(function (line, idx) {
-    if (!line.trim()) {
-      if (idx !== 0) body.appendParagraph('');
-      return;
-    }
-    body.appendParagraph(line);
-  });
-
-  doc.saveAndClose();
-  const file = DriveApp.getFileById(doc.getId());
-  folder.addFile(file);
-  try { DriveApp.getRootFolder().removeFile(file); } catch (e) {}
-  try { file.setSharing(DriveApp.Access.PRIVATE, DriveApp.Permission.EDIT); } catch (e) {}
-
-  Audit_log_(user, 'file.create_doc', 'file', doc.getId(), { title: title, sub: sub });
-  return {
-    id: doc.getId(),
-    name: title,
-    url: doc.getUrl(),
-    subfolder: sub,
-    word_count: content.split(/\s+/).filter(Boolean).length,
-    line_count: content.split(/\r?\n/).length
-  };
 }

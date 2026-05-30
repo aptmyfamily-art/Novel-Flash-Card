@@ -1,6 +1,6 @@
 <script type="text/x-shvr-core" id="shvr-core-script">
 /* ═══════════════════════════════════════════════════════════════
-   NOVEL · Core SPA — App shell, router, helpers, API, common UI
+   SHVR · Core SPA — App shell, router, helpers, API, common UI
    ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
@@ -269,6 +269,7 @@
     Store.token = loadSession();
     call('app.bootstrap', {}).then(function (data) {
       Store.boot = data;
+      Store.academic_year = (data.settings && data.settings.current_academic_year) || '2569';
       if (data.me) { Store.user = data.me; Store.caps = data.caps || []; }
       else Store.token = null;
       $('#boot-loader').style.display = 'none';
@@ -336,6 +337,12 @@
       }
     }, true);
     window.addEventListener('hashchange', dispatch);
+    document.addEventListener('change', function (e) {
+      if (e.target && e.target.id === 'nav-academic-year-select') {
+        Store.academic_year = e.target.value;
+        dispatch();
+      }
+    });
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
         var pp = $('.nav-profile-popover'); if (pp) pp.remove();
@@ -401,24 +408,24 @@
       + '<div class="login-shell">'
       // Brand Panel
       + '<div class="lb-panel">'
-      + '<div class="lb-brand"><div class="lb-logo"><i class="bi bi-card-text"></i></div>'
+      + '<div class="lb-brand"><div class="lb-logo"><i class="bi bi-house-heart-fill"></i></div>'
       + '<div><div class="lb-app-name">' + esc(app.short || 'SHVR') + '</div>'
       + '<div class="lb-app-sub">' + esc(app.name || '') + '</div></div></div>'
-      + '<div class="lb-tagline">จัดการ<span>คำศัพท์นิยาย</span><br>เพื่อนักเขียนมือโปร</div>'
+      + '<div class="lb-tagline">บันทึก<span>การเยี่ยมบ้าน</span> นักเรียน<br>ครบทุกมิติ ในที่เดียว</div>'
       + '<div class="lb-features">'
-      + featCard('bi-card-text','จัดการคำศัพท์','จัดกลุ่มคำศัพท์ตามตัวละครหรือสถานที่')
-      + featCard('bi-search','ค้นหาง่าย','ค้นหาคำศัพท์ที่ต้องการได้อย่างรวดเร็ว')
-      + featCard('bi-cloud-upload-fill','เก็บข้อมูลปลอดภัย','ข้อมูลบันทึกบนระบบคลาวด์ 100%')
-      + featCard('bi-shield-check','สิทธิ์การใช้งาน','รองรับการใช้งานหลายระดับ')
+      + featCard('bi-clipboard-data-fill','บันทึกครบทุกข้อ','ครอบคลุมตามแบบฟอร์มราชการ 100%')
+      + featCard('bi-people-fill','คัดกรองนักเรียนยากจน','คำนวณรายได้ครัวเรือนอัตโนมัติ')
+      + featCard('bi-printer-fill','พิมพ์เอกสาร PDF ได้ทันที','พิมพ์ผ่านเบราว์เซอร์แบบมืออาชีพ')
+      + featCard('bi-shield-check','ปลอดภัย เข้ารหัสข้อมูล','รองรับสิทธิ์ผู้ใช้ 4 ระดับ')
       + '</div>'
       + '<div class="lb-stats">'
-      + '<div><div class="lb-stat-val">100%</div><div class="lb-stat-lbl">สะดวก รวดเร็ว</div></div>'
+      + '<div><div class="lb-stat-val">100%</div><div class="lb-stat-lbl">ตรงตามแบบฟอร์ม</div></div>'
       + '<div><div class="lb-stat-val">4</div><div class="lb-stat-lbl">บทบาทผู้ใช้</div></div>'
-      + '<div><div class="lb-stat-val">24/7</div><div class="lb-stat-lbl">เข้าถึงได้ตลอด</div></div>'
+      + '<div><div class="lb-stat-val">A4</div><div class="lb-stat-lbl">พิมพ์ได้ทันที</div></div>'
       + '</div></div>'
       // Form Card
       + '<div class="lf-card">'
-      + '<div class="lf-brand-mobile"><div class="lb-logo"><i class="bi bi-card-text"></i></div>'
+      + '<div class="lf-brand-mobile"><div class="lb-logo"><i class="bi bi-house-heart-fill"></i></div>'
       + '<div><div style="font-weight:800;font-size:16px">' + esc(app.short||'SHVR') + '</div><div style="font-size:11px;opacity:.7">' + esc(app.name||'') + '</div></div></div>'
       + '<div><div class="lf-title">ยินดีต้อนรับกลับ</div><div class="lf-sub">เข้าสู่ระบบเพื่อเริ่มใช้งาน</div></div>'
       + '<form class="lf" id="login-form" novalidate>'
@@ -572,21 +579,31 @@
       ]
     },
     {
+      title: 'งานหลัก',
+      items: [
+        { hash: '#/visits', icon: 'bi-house-heart-fill', label: 'บันทึกการเยี่ยมบ้าน', cap: 'visit.view_all|visit.view_own' },
+        { hash: '#/visits/new', icon: 'bi-plus-circle-fill', label: 'เยี่ยมบ้านใหม่', cap: 'visit.create' }
+      ]
+    },
+    {
       title: 'ข้อมูลหลัก',
       items: [
+        { hash: '#/students', icon: 'bi-people-fill', label: 'นักเรียน', cap: 'student.view_all' },
         { hash: '#/users', icon: 'bi-person-badge-fill', label: 'ผู้ใช้ระบบ', cap: 'user.manage' }
       ]
     },
     {
       title: 'รายงานและประวัติ',
       items: [
+        { hash: '#/reports', icon: 'bi-bar-chart-fill', label: 'รายงาน', cap: 'report.view_all|report.view_own' },
         { hash: '#/audit', icon: 'bi-clipboard-data-fill', label: 'Audit Log', cap: 'audit.view_all' }
       ]
     },
     {
       title: 'ระบบ',
       items: [
-        { hash: '#/settings', icon: 'bi-gear-fill', label: 'ตั้งค่าระบบ', cap: 'setting.manage' }
+        { hash: '#/settings', icon: 'bi-gear-fill', label: 'ตั้งค่าระบบ', cap: 'setting.manage' },
+        { hash: '#/settings/teachers', icon: 'bi-person-badge-fill', label: 'ครูประจำชั้น', cap: 'setting.manage' }
       ]
     },
     {
@@ -598,10 +615,18 @@
   ];
 
   var PAGE_META = {
-    '#/dashboard': { title: 'แดชบอร์ด', sub: 'ภาพรวมระบบคำศัพท์นิยาย', icon: 'bi-grid-fill' },
+    '#/dashboard': { title: 'แดชบอร์ด', sub: 'ภาพรวมการเยี่ยมบ้านนักเรียน', icon: 'bi-grid-fill' },
+    '#/visits': { title: 'บันทึกการเยี่ยมบ้าน', sub: 'รายการบันทึกการเยี่ยมบ้านทั้งหมด', icon: 'bi-house-heart-fill' },
+    '#/visits/new': { title: 'เยี่ยมบ้านใหม่', sub: 'บันทึกการเยี่ยมบ้านนักเรียน', icon: 'bi-plus-circle-fill' },
+    '#/visits/edit': { title: 'แก้ไขการเยี่ยมบ้าน', sub: 'แก้ไขข้อมูลการเยี่ยมบ้าน', icon: 'bi-pencil-square' },
+    '#/visits/view': { title: 'รายละเอียดการเยี่ยมบ้าน', sub: 'ดูข้อมูลการเยี่ยมบ้าน', icon: 'bi-eye-fill' },
+    '#/visits/print': { title: 'พิมพ์เอกสาร', sub: 'พิมพ์แบบบันทึกการเยี่ยมบ้าน', icon: 'bi-printer-fill' },
+    '#/students': { title: 'นักเรียน', sub: 'จัดการข้อมูลนักเรียน', icon: 'bi-people-fill' },
     '#/users': { title: 'ผู้ใช้ระบบ', sub: 'จัดการบัญชีผู้ใช้', icon: 'bi-person-badge-fill' },
+    '#/reports': { title: 'รายงาน', sub: 'รายงานสรุปการเยี่ยมบ้าน', icon: 'bi-bar-chart-fill' },
     '#/audit': { title: 'Audit Log', sub: 'บันทึกประวัติการใช้งาน', icon: 'bi-clipboard-data-fill' },
     '#/settings': { title: 'ตั้งค่าระบบ', sub: 'จัดการการตั้งค่าระบบ', icon: 'bi-gear-fill' },
+    '#/settings/teachers': { title: 'ครูประจำชั้น', sub: 'กำหนดครูประจำชั้นแต่ละห้อง/ปีการศึกษา', icon: 'bi-person-badge-fill' },
     '#/profile': { title: 'โปรไฟล์', sub: 'จัดการข้อมูลส่วนตัว', icon: 'bi-person-circle' },
     '#/change-password': { title: 'เปลี่ยนรหัสผ่าน', sub: 'อัปเดตรหัสผ่านของคุณ', icon: 'bi-key-fill' }
   };
@@ -620,7 +645,7 @@
 
     var sidebarHtml = '<aside class="sidebar" id="sidebar">'
       + '<div class="sb-power">'
-      + '<div class="sb-brand"><div class="sb-brand-logo"><i class="bi bi-card-text"></i></div>'
+      + '<div class="sb-brand"><div class="sb-brand-logo"><i class="bi bi-house-heart-fill"></i></div>'
       + '<div><div class="sb-brand-name">' + esc(Store.boot.app.short || 'SHVR') + '</div>'
       + '<div class="sb-brand-org">' + esc(Store.boot.settings.org_name || '') + '</div></div></div>'
       + '<div class="sb-clock"><div class="sb-clock-time" id="sb-clock-time">--:--:--</div><div class="sb-clock-date" id="sb-clock-date">-</div></div>'
@@ -642,11 +667,23 @@
       + '<a class="sb-link is-logout" href="#" data-action="logout"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a></div>'
       + '</nav></aside>';
 
+    var optHtml = '';
+    var currentYear = Number((Store.boot.settings && Store.boot.settings.current_academic_year) || 2569);
+    for (var yr = currentYear - 3; yr <= currentYear + 3; yr++) {
+      optHtml += '<option value="' + yr + '"' + (String(Store.academic_year) === String(yr) ? ' selected' : '') + '>ปีการศึกษา ' + yr + '</option>';
+    }
+
     var navbarHtml = '<header class="navbar" id="navbar">'
       + '<button class="nav-burger" data-action="open-sidebar"><i class="bi bi-list"></i></button>'
       + '<div class="nav-page-card" id="nav-page-icon"><i class="bi bi-grid-fill"></i></div>'
       + '<div><div class="nav-page-title" id="nav-page-title">-</div><div class="nav-page-sub" id="nav-page-sub">-</div></div>'
       + '<div class="nav-online">● ออนไลน์</div>'
+      + '<div class="nav-year-select-wrap" style="display: flex; align-items: center; gap: 8px; position: relative;">'
+      + '<i class="bi bi-calendar3" style="color: var(--brand-1); position: absolute; left: 10px; font-size: 14px; pointer-events: none;"></i>'
+      + '<select class="select" id="nav-academic-year-select" style="padding: 4px 28px 4px 30px; font-size: 13px; font-weight: 600; border-radius: 10px; border: 1px solid var(--line); background-color: var(--line-soft); cursor: pointer; color: var(--ink-dark); height: 32px; min-height: unset; line-height: 1.2; width: auto; -webkit-appearance: none; -moz-appearance: none; appearance: none; background-image: url(\'data:image/svg+xml;charset=utf-8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 16 16%22%3E%3Cpath fill=%22none%22 stroke=%22%23475569%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22 stroke-width=%222%22 d=%22m2 5 6 6 6-6%22/%3E%3C/svg%3E\'); background-repeat: no-repeat; background-position: right 10px center; background-size: 10px 10px;">'
+      + optHtml
+      + '</select>'
+      + '</div>'
       + '<div class="nav-clock" id="nav-clock">-</div>'
       + '<button class="nav-bell"><i class="bi bi-bell-fill"></i></button>'
       + '<div class="nav-profile" data-action="toggle-profile">'
@@ -665,7 +702,9 @@
 
     var bottomNavHtml = '<nav class="bottom-nav" id="bottom-nav">'
       + bnItem('#/dashboard', 'bi-grid-fill', 'หน้าแรก')
-      + bnItem('#/profile', 'bi-person-circle', 'โปรไฟล์')
+      + bnItem('#/visits', 'bi-house-heart-fill', 'เยี่ยมบ้าน')
+      + bnItem('#/visits/new', 'bi-plus-circle-fill', 'บันทึก')
+      + bnItem('#/students', 'bi-people-fill', 'นักเรียน')
       + bnItem('#', 'bi-list', 'เมนู', 'open-sidebar')
       + '</nav>';
 
@@ -695,7 +734,7 @@
     var handler = Routes[hash];
     var matchedKey = hash;
     if (!handler) {
-      // Prefix matching for /items/edit/123 -> /items/edit
+      // Prefix matching for /visits/edit/123 -> /visits/edit
       var keys = Object.keys(Routes).sort(function (a, b) { return b.length - a.length; });
       for (var i = 0; i < keys.length; i++) {
         if (hash.indexOf(keys[i] + '/') === 0 || hash === keys[i]) { handler = Routes[keys[i]]; matchedKey = keys[i]; break; }
@@ -780,6 +819,12 @@
   }
   window.formatNum = formatNum;
 
+  function studentName(s) {
+    if (!s) return '-';
+    return ((s.prefix || '') + (s.first_name || '') + ' ' + (s.last_name || '')).trim();
+  }
+  window.studentName = studentName;
+
   // ── Public surface ──
   window.SHVR = {
     boot: boot, dispatch: dispatch, renderShell: renderShell, renderLogin: renderLogin,
@@ -787,7 +832,7 @@
     toast: toast, alertSuccess: alertSuccess, alertError: alertError, alertWarning: alertWarning,
     alertInfo: alertInfo, confirmModal: confirmModal, hasCap: hasCap, uploadFile: uploadFile,
     pageHero: pageHero, statusBadge: statusBadge, roleChip: roleChip, formatNum: formatNum,
-    doLogout: doLogout, Store: Store, Routes: Routes
+    studentName: studentName, doLogout: doLogout, Store: Store, Routes: Routes
   };
 
 })();

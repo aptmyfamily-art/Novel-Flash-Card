@@ -1,264 +1,2948 @@
-<script>
-/**
- * Novel Flashcard page handlers.
- * Keeps the Home Visit dashboard feel while replacing the domain flow
- * with "paste text -> create Google Docs".
- */
+<script type="text/x-shvr-core-pages" id="shvr-pages-script">
+/* ═══════════════════════════════════════════════════════════════
+   SHVR · Page Handlers — Dashboard, Students, Visits, Reports, etc.
+   ═══════════════════════════════════════════════════════════════ */
 (function () {
   'use strict';
+  var $ = window.$ || function (s, r) { return (r||document).querySelector(s); };
+  var $$ = window.$$ || function (s, r) { return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+  var esc = window.esc, call = window.call, TH = window.TH;
+  var Store = window.Store, Routes = window.Routes;
+  var Modal = window.Modal, Spinner = window.Spinner;
+  var toast = window.toast, alertSuccess = window.alertSuccess, alertError = window.alertError;
+  var confirmModal = window.confirmModal, hasCap = window.hasCap;
+  var pageHero = window.pageHero, statusBadge = window.statusBadge, roleChip = window.roleChip;
+  var formatNum = window.formatNum, studentName = window.studentName;
 
-  var $ = window.$ || function (s, r) { return (r || document).querySelector(s); };
-  var $$ = window.$$ || function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)); };
-  var esc = window.esc;
-  var call = window.call;
-  var Store = window.Store;
-  var Routes = window.Routes;
-  var Modal = window.Modal;
-  var Spinner = window.Spinner;
-  var alertSuccess = window.alertSuccess;
-  var alertError = window.alertError;
-  var alertWarning = window.alertWarning;
-  var pageHero = window.pageHero;
-  var formatNum = window.formatNum || function (n) { return String(n || 0); };
-
-  Routes['#/dashboard'] = function RenderDashboard() {
+  // ════════════════════════════════════════════════════════════
+  // DASHBOARD
+  // ════════════════════════════════════════════════════════════
+  Routes['#/dashboard'] = function () {
     var page = $('#page');
-    if (!page) return;
-
-    var navTitle = $('#nav-page-title');
-    var navSub = $('#nav-page-sub');
-    var navIcon = $('#nav-page-icon');
-    if (navTitle) navTitle.textContent = 'แดชบอร์ด';
-    if (navSub) navSub.textContent = 'สร้าง Google Docs จากข้อความนิยายโดยอิงหน้าตาระบบเดิม';
-    if (navIcon) navIcon.innerHTML = '<i class="bi bi-grid-fill"></i>';
-
-    var orgName = (Store.boot && Store.boot.settings && Store.boot.settings.org_name) || 'Novel Flashcard';
-    var kpis = [
-      { val: '1', lbl: 'Workflow หลัก', icon: 'bi-lightning-charge-fill', color1: '#6366f1', color2: '#8b5cf6' },
-      { val: 'Docs', lbl: 'รูปแบบปลายทาง', icon: 'bi-file-earmark-text-fill', color1: '#10b981', color2: '#059669' },
-      { val: 'Drive', lbl: 'พื้นที่จัดเก็บ', icon: 'bi-cloud-arrow-up-fill', color1: '#0ea5e9', color2: '#0284c7' },
-      { val: 'Text', lbl: 'ข้อมูลนำเข้า', icon: 'bi-input-cursor-text', color1: '#f59e0b', color2: '#d97706' }
-    ];
-
-    var html = pageHero(
-      'คลังคำศัพท์นิยาย',
-      'วางข้อความนิยายรายตอน แล้วบันทึกขึ้น Google Drive เป็น Docs',
-      'bi-house-fill',
-      kpis
-    );
-
-    html += '<div class="card" style="margin-bottom:16px"><h3 class="card-title"><i class="bi bi-lightning-charge-fill" style="color:#f59e0b"></i> เมนูด่วน</h3>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px">'
-      + qaCard('bi-file-earmark-plus-fill', 'สร้างเอกสารจากข้อความ', '#6366f1', '#8b5cf6', 'open-doc-modal')
-      + qaCard('bi-clipboard-check-fill', 'วางเนื้อหารายตอน', '#0ea5e9', '#0284c7', 'focus-doc-editor')
-      + qaCard('bi-folder2-open', 'ใช้โฟลเดอร์ episodes', '#10b981', '#059669', 'prefill-episodes')
-      + qaCard('bi-diagram-3-fill', 'จัดเป็นโฟลเดอร์ย่อย', '#f59e0b', '#d97706', 'prefill-nested')
-      + '</div></div>';
-
-    html += '<div class="card" style="margin-bottom:16px"><h3 class="card-title"><i class="bi bi-journal-richtext" style="color:#6366f1"></i> พื้นที่เตรียมต้นฉบับ</h3>'
-      + '<div class="toolbar">'
-      + '<div class="search" style="flex:1;max-width:none"><i class="bi bi-pencil-square"></i><input class="input" id="doc-title-inline" placeholder="ชื่อตอน / ชื่อเอกสาร"></div>'
-      + '<input class="input" id="doc-folder-inline" value="episodes" placeholder="โฟลเดอร์ย่อย เช่น novels/เรื่องA/episodes" style="max-width:280px">'
-      + '<button class="btn btn-primary" id="doc-open-modal"><i class="bi bi-box-arrow-in-up-right"></i> เปิดฟอร์มบันทึก</button>'
-      + '</div>'
-      + '<div style="margin-top:14px">'
-      + '<textarea class="textarea" id="doc-content-inline" style="min-height:280px" placeholder="วางข้อความนิยายรายตอนที่นี่..."></textarea>'
-      + '</div>'
-      + '<div style="margin-top:16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">'
-      + '<button class="btn btn-primary" id="doc-save-inline"><i class="bi bi-file-earmark-text-fill"></i> สร้าง Google Docs</button>'
-      + '<button class="btn btn-ghost" id="doc-clear-inline"><i class="bi bi-eraser"></i> ล้างข้อความ</button>'
-      + '<span id="doc-inline-status" style="font-size:13px;color:var(--ink-muted)">พร้อมรับข้อความ</span>'
-      + '</div>'
-      + '<div id="doc-inline-result" style="display:none;margin-top:14px"></div>'
-      + '</div>';
-
-    html += '<div class="card"><h3 class="card-title"><i class="bi bi-info-circle-fill" style="color:#0ea5e9"></i> แนวทางการใช้งาน</h3>'
-      + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px">'
-      + infoBox('1. วางข้อความ', 'นำข้อความนิยายรายตอนมาวางลงใน textarea ได้ตรง ๆ')
-      + infoBox('2. ตั้งชื่อเอกสาร', 'ใช้ชื่อตอนหรือ slug ชั่วคราวก่อนแยก metadata ทีหลัง')
-      + infoBox('3. บันทึกขึ้น Drive', 'ระบบจะสร้าง Google Docs และย้ายเข้าโฟลเดอร์ย่อยให้')
-      + infoBox('4. จัดตามโฟลเดอร์', 'รองรับ path หลายชั้น เช่น novels/เรื่องA/episodes')
-      + '</div>'
-      + '<div style="margin-top:14px;font-size:12px;color:var(--ink-muted)">ปลายทางปัจจุบัน: <strong>' + esc(orgName) + '</strong> / โฟลเดอร์ preview ของแอป</div>'
-      + '</div>';
-
-    page.innerHTML = html;
-    wireDashboardDocFlow();
+    page.innerHTML = '<div class="sk sk-block" style="height:200px;border-radius:22px;margin-bottom:14px"></div>';
+    Spinner.show('กำลังโหลดข้อมูล...');
+    call('report.dashboard', { academic_year: Store.academic_year }).then(function (d) {
+      Spinner.hide();
+      if (!$('#page')) return;
+      var u = Store.user;
+      var greeting = greetingByTime();
+      var kpis = [
+        { val: formatNum(d.total_visits), lbl: 'การเยี่ยมทั้งหมด', icon: 'bi-house-heart-fill', color1: '#6366f1', color2: '#8b5cf6' },
+        { val: formatNum(d.total_students), lbl: 'นักเรียนในระบบ', icon: 'bi-people-fill', color1: '#0ea5e9', color2: '#0284c7' },
+        { val: formatNum(d.completed), lbl: 'บันทึกเรียบร้อย', icon: 'bi-check-circle-fill', color1: '#10b981', color2: '#059669' },
+        { val: formatNum(d.draft), lbl: 'ฉบับร่าง', icon: 'bi-pencil-square', color1: '#f59e0b', color2: '#d97706' }
+      ];
+      var html = pageHero(greeting + ', ' + (u.full_name||''), TH.dateLongWeekday(new Date()) + ' · ' + esc(Store.boot.settings.org_name||''), 'bi-house-heart-fill', kpis);
+      // Quick actions
+      html += '<div class="card" style="margin-bottom:16px"><h3 class="card-title"><i class="bi bi-lightning-charge-fill" style="color:#f59e0b"></i> เมนูด่วน</h3>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px">'
+        + qaCard('#/visits/new', 'bi-plus-circle-fill', 'เยี่ยมบ้านใหม่', '#10b981', '#059669', 'visit.create')
+        + qaCard('#/visits', 'bi-house-heart-fill', 'รายการเยี่ยมบ้าน', '#6366f1', '#8b5cf6', 'visit.view_all|visit.view_own')
+        + qaCard('#/students', 'bi-people-fill', 'จัดการนักเรียน', '#0ea5e9', '#0284c7', 'student.view_all')
+        + qaCard('#/reports', 'bi-bar-chart-fill', 'รายงาน', '#f59e0b', '#d97706', 'report.view_all|report.view_own')
+        + qaCard('#/users', 'bi-person-badge-fill', 'ผู้ใช้ระบบ', '#f43f5e', '#e11d48', 'user.manage')
+        + qaCard('#/settings', 'bi-gear-fill', 'ตั้งค่าระบบ', '#64748b', '#334155', 'setting.manage')
+        + '</div></div>';
+      var catOrder = ['warm_family','broken_family','distant_family','lives_with_both_parents','lives_with_single_parent','not_living_with_parents'];
+      var catLabels = d.student_category_labels || {};
+      var catCounts = d.student_categories || {};
+      // Privacy/UI: show counts only, not student names
+      var catStudents = {};
+      html += '<div class="card" style="margin-bottom:16px"><h3 class="card-title"><i class="bi bi-tags-fill" style="color:#0ea5e9"></i> ความใกล้ชิดของนักเรียนกับครอบครัว</h3>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:10px">';
+      catOrder.forEach(function (k) {
+        var list = catStudents[k] || [];
+        html += '<div style="border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff">'
+          + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px">'
+          + '<div style="font-weight:700;font-size:13px;line-height:1.35">' + esc(catLabels[k] || k) + '</div>'
+          + '<div style="font-size:22px;font-weight:800;color:var(--brand-1);line-height:1">' + formatNum(catCounts[k] || 0) + '</div>'
+          + '</div>';
+        if (!list.length) {
+          html += '<div style="font-size:12px;color:var(--ink-muted)">ยังไม่มีนักเรียนในหมวดนี้</div>';
+        } else {
+          html += '<div style="display:flex;flex-direction:column;gap:6px;max-height:150px;overflow:auto">';
+          list.slice(0, 8).forEach(function (x) {
+            html += '<a href="#/visits/view/' + esc(x.id) + '" style="display:flex;justify-content:space-between;gap:8px;text-decoration:none;color:inherit;font-size:12px;padding:6px 8px;border-radius:8px;background:#f8fafc">'
+              + '<span>' + esc(x.student_name || '-') + '</span>'
+              + '<span style="color:var(--ink-muted);white-space:nowrap">' + esc(x.class_level || '') + (x.room ? '/' + esc(x.room) : '') + '</span>'
+              + '</a>';
+          });
+          if (list.length > 8) html += '<div style="font-size:11px;color:var(--ink-muted);padding:2px 4px">และอีก ' + formatNum(list.length - 8) + ' ราย</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+      html += '</div></div>';
+      var riskOrder = ['economic','safety','sexual_behavior','mental_health','physical_health','violence','substance'];
+      var riskLabels = d.student_risk_labels || {};
+      var riskCounts = d.student_risks || {};
+      // Privacy/UI: show counts only, not student names
+      var riskStudents = {};
+      html += '<div class="card" style="margin-bottom:16px"><h3 class="card-title"><i class="bi bi-exclamation-triangle-fill" style="color:#f43f5e"></i> ความเสี่ยงของนักเรียน</h3>'
+        + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:10px">';
+      riskOrder.forEach(function (k) {
+        var list = riskStudents[k] || [];
+        html += '<div style="border:1px solid var(--line);border-radius:8px;padding:12px;background:#fff">'
+          + '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px">'
+          + '<div style="font-weight:700;font-size:13px;line-height:1.35">' + esc(riskLabels[k] || k) + '</div>'
+          + '<div style="font-size:22px;font-weight:800;color:#e11d48;line-height:1">' + formatNum(riskCounts[k] || 0) + '</div>'
+          + '</div>';
+        if (!list.length) {
+          html += '<div style="font-size:12px;color:var(--ink-muted)">ยังไม่มีนักเรียนในความเสี่ยงนี้</div>';
+        } else {
+          html += '<div style="display:flex;flex-direction:column;gap:6px;max-height:150px;overflow:auto">';
+          list.slice(0, 8).forEach(function (x) {
+            html += '<a href="#/visits/view/' + esc(x.id) + '" style="display:flex;justify-content:space-between;gap:8px;text-decoration:none;color:inherit;font-size:12px;padding:6px 8px;border-radius:8px;background:#fff1f2">'
+              + '<span>' + esc(x.student_name || '-') + '</span>'
+              + '<span style="color:var(--ink-muted);white-space:nowrap">' + esc(x.class_level || '') + (x.room ? '/' + esc(x.room) : '') + '</span>'
+              + '</a>';
+          });
+          if (list.length > 8) html += '<div style="font-size:11px;color:var(--ink-muted);padding:2px 4px">และอีก ' + formatNum(list.length - 8) + ' ราย</div>';
+          html += '</div>';
+        }
+        html += '</div>';
+      });
+      html += '</div></div>';
+      // Recent
+      html += '<div class="card"><h3 class="card-title"><i class="bi bi-clock-history" style="color:#6366f1"></i> รายการล่าสุด</h3>';
+      if (!d.recent || !d.recent.length) {
+        html += '<div class="empty-state"><i class="bi bi-inbox"></i><p>ยังไม่มีรายการเยี่ยมบ้าน</p></div>';
+      } else {
+        html += '<div style="overflow-x:auto"><table class="data-table"><thead><tr><th>เลขที่</th><th>นักเรียน</th><th>ชั้น</th><th>วันที่เยี่ยม</th><th>สถานะ</th><th></th></tr></thead><tbody>';
+        d.recent.forEach(function (r) {
+          html += '<tr><td><strong>' + esc(r.visit_code) + '</strong></td>'
+            + '<td>' + esc(r.student_name||'-') + '</td>'
+            + '<td>' + esc(r.class_level||'') + (r.room ? '/' + esc(r.room) : '') + '</td>'
+            + '<td>' + TH.date(r.visit_date) + '</td>'
+            + '<td>' + statusBadge(r.status) + '</td>'
+            + '<td><a class="btn btn-ghost btn-sm" href="#/visits/view/' + esc(r.id) + '"><i class="bi bi-eye"></i> ดู</a></td></tr>';
+        });
+        html += '</tbody></table></div>';
+      }
+      html += '</div>';
+      page.innerHTML = html;
+    }).catch(function (e) {
+      Spinner.hide();
+      if ($('#page')) $('#page').innerHTML = '<div class="card"><div class="empty-state"><i class="bi bi-exclamation-triangle"></i><p>โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + '</p></div></div>';
+    });
   };
-
-  function qaCard(icon, label, c1, c2, action) {
-    return '<button type="button" class="qa-card" data-doc-action="' + esc(action) + '" style="border:0;background:transparent;padding:0;text-align:left;cursor:pointer">'
+  function qaCard(hash, icon, label, c1, c2, cap) {
+    if (cap && !hasCap(cap)) return '';
+    return '<a href="' + hash + '" class="qa-card">'
       + '<div class="qa-card-inner">'
       + '<div class="qa-card-icon" style="background:linear-gradient(135deg,' + c1 + ',' + c2 + ');box-shadow:0 8px 16px ' + c1 + '40"><i class="bi ' + icon + '"></i></div>'
-      + '<div class="qa-card-label">' + esc(label) + '</div></div></button>';
+      + '<div class="qa-card-label">' + esc(label) + '</div></div></a>';
+  }
+  function greetingByTime() {
+    var h = new Date().getHours();
+    if (h < 12) return 'อรุณสวัสดิ์';
+    if (h < 17) return 'สวัสดี';
+    return 'สวัสดียามเย็น';
   }
 
-  function infoBox(title, desc) {
-    return '<div style="border:1px solid var(--line);border-radius:10px;padding:12px;background:#fff">'
-      + '<div style="font-weight:700;font-size:13px;color:var(--ink)">' + esc(title) + '</div>'
-      + '<div style="font-size:12px;color:var(--ink-muted);margin-top:6px;line-height:1.6">' + esc(desc) + '</div>'
+  // ════════════════════════════════════════════════════════════
+  // STUDENTS
+  // ════════════════════════════════════════════════════════════
+  var STU_STATE = { q: '', class_level: '', visit_status: '', page: 1, academic_year: '' };
+  // Sync STU_STATE.academic_year from Store whenever this module initialises or re-runs
+  function syncStuYear() { STU_STATE.academic_year = Store.academic_year || ''; }
+  Routes['#/students'] = function () {
+    syncStuYear();
+    var page = $('#page');
+    page.innerHTML = '<div class="sk sk-block" style="height:120px;border-radius:18px"></div>';
+    call('student.list', STU_STATE).then(function (r) {
+      if (!$('#page')) return;
+      renderStudents(r);
+    }).catch(function (e) {
+      $('#page').innerHTML = '<div class="card">โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + '</div>';
+    });
+  };
+
+  function visitStatusBadge(v) {
+    if (!v) return '<span class="vs-badge vs-not"><i class="bi bi-dash-circle"></i> ยังไม่เยี่ยม</span>';
+    if (v.visited_this_year) {
+      var label = v.last_status === 'approved' ? 'อนุมัติแล้ว' : (v.last_status === 'completed' ? 'บันทึกแล้ว' : 'ฉบับร่าง');
+      var cls = v.last_status === 'approved' ? 'vs-approved' : (v.last_status === 'completed' ? 'vs-done' : 'vs-draft');
+      return '<span class="vs-badge ' + cls + '"><i class="bi bi-check-circle-fill"></i> ' + esc(label) + '</span>'
+        + '<div class="vs-meta">' + TH.date(v.last_date) + (v.count_year > 1 ? ' · ' + v.count_year + ' ครั้ง/ปี' : '') + '</div>';
+    }
+    if (v.ever_visited) {
+      return '<span class="vs-badge vs-old"><i class="bi bi-clock-history"></i> เคยเยี่ยม</span>'
+        + '<div class="vs-meta">ล่าสุด ' + TH.date(v.last_date) + '</div>';
+    }
+    return '<span class="vs-badge vs-not"><i class="bi bi-dash-circle"></i> ยังไม่เยี่ยม</span>';
+  }
+  window.visitStatusBadge = visitStatusBadge;
+
+  function renderStudents(r) {
+    var st = r.stats || { total: 0, visited_this_year: 0, not_visited: 0 };
+    var rate = st.total > 0 ? Math.round(st.visited_this_year / st.total * 100) : 0;
+    var html = pageHero('นักเรียน', 'จัดการนักเรียน · บันทึกการเยี่ยมบ้าน ปีการศึกษา ' + (r.academic_year ? esc(r.academic_year) : '-'), 'bi-people-fill', [
+      { val: formatNum(st.total), lbl: 'นักเรียนทั้งหมด', icon: 'bi-people-fill', color1: '#0ea5e9', color2: '#0284c7' },
+      { val: formatNum(st.visited_this_year), lbl: 'เยี่ยมแล้ว (ปีนี้)', icon: 'bi-check-circle-fill', color1: '#10b981', color2: '#059669' },
+      { val: formatNum(st.not_visited), lbl: 'ยังไม่เยี่ยม', icon: 'bi-exclamation-triangle-fill', color1: '#f59e0b', color2: '#d97706' },
+      { val: rate + '%', lbl: 'อัตราเยี่ยมบ้าน', icon: 'bi-graph-up-arrow', color1: '#8b5cf6', color2: '#7c3aed' }
+    ]);
+    html += '<div class="toolbar">'
+      + '<div class="search"><i class="bi bi-search"></i><input class="input" id="stu-q" placeholder="ค้นหาด้วยชื่อ / รหัส / เลขบัตร..." value="' + esc(STU_STATE.q) + '"></div>'
+      + '<input class="input" id="stu-class" placeholder="ชั้น" value="' + esc(STU_STATE.class_level) + '" style="max-width:120px">'
+      + '<select class="select" id="stu-vstatus" style="max-width:200px">'
+      +   '<option value=""' + (STU_STATE.visit_status === '' ? ' selected' : '') + '>ทั้งหมด</option>'
+      +   '<option value="not_visited"' + (STU_STATE.visit_status === 'not_visited' ? ' selected' : '') + '>ยังไม่เยี่ยม (ปีนี้)</option>'
+      +   '<option value="visited"' + (STU_STATE.visit_status === 'visited' ? ' selected' : '') + '>เยี่ยมแล้ว (ปีนี้)</option>'
+      +   '<option value="never_visited"' + (STU_STATE.visit_status === 'never_visited' ? ' selected' : '') + '>ไม่เคยเยี่ยม</option>'
+      +   '<option value="ever_visited"' + (STU_STATE.visit_status === 'ever_visited' ? ' selected' : '') + '>เคยเยี่ยม</option>'
+      + '</select>'
+      + '<button class="btn btn-ghost" id="stu-search-btn"><i class="bi bi-funnel-fill"></i> ค้นหา</button>'
+      + (hasCap('student.create') ? '<button class="btn btn-ghost" id="stu-import-btn" style="margin-left:auto"><i class="bi bi-file-earmark-spreadsheet-fill"></i> นำเข้า Excel/CSV</button>' : '')
+      + (hasCap('student.create') ? '<button class="btn btn-primary" id="stu-add-btn"><i class="bi bi-plus-lg"></i> เพิ่มนักเรียน</button>' : '')
       + '</div>';
+
+    // Filter chips for quick switch
+    html += '<div class="vs-chips">'
+      + chip('', 'ทั้งหมด', st.total)
+      + chip('not_visited', 'ยังไม่เยี่ยม', st.not_visited, 'amber')
+      + chip('visited', 'เยี่ยมแล้ว', st.visited_this_year, 'emerald')
+      + '</div>';
+
+    if (!r.items.length) {
+      html += '<div class="card"><div class="empty-state"><i class="bi bi-people"></i><p>'
+        + (STU_STATE.visit_status ? 'ไม่พบนักเรียนตามเงื่อนไขนี้' : 'ยังไม่มีข้อมูลนักเรียน')
+        + '</p>'
+        + (hasCap('student.create') && !STU_STATE.visit_status ? '<button class="btn btn-primary" id="stu-add-empty"><i class="bi bi-plus-lg"></i> เพิ่มคนแรก</button>' : '')
+        + '</div></div>';
+    } else {
+      html += '<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table"><thead>'
+        + '<tr><th>รหัส</th><th>ชื่อ-นามสกุล</th><th>ชั้น/ห้อง</th><th>สถานะการเยี่ยม</th><th>เพศ</th><th>การจัดการ</th></tr>'
+        + '</thead><tbody>';
+      r.items.forEach(function (s) {
+        var v = s._visit || {};
+        html += '<tr>'
+          + '<td><strong>' + esc(s.student_code||'-') + '</strong></td>'
+          + '<td>' + esc(studentName(s)) + (s.nickname ? ' <span style="color:var(--ink-muted);font-size:11px">(' + esc(s.nickname) + ')</span>' : '') + '</td>'
+          + '<td>' + esc(s.class_level||'') + (s.room ? '/' + esc(s.room) : '') + '</td>'
+          + '<td>' + visitStatusBadge(v) + '</td>'
+          + '<td>' + esc(s.gender||'') + '</td>'
+          + '<td>'
+          + (v.last_id ? '<a class="btn btn-ghost btn-sm" href="#/visits/view/' + esc(v.last_id) + '" title="ดูบันทึกล่าสุด"><i class="bi bi-eye"></i></a> ' : '')
+          + (hasCap('visit.create') ? '<a class="btn btn-primary btn-sm" href="#/visits/new?student=' + encodeURIComponent(s.id) + '"><i class="bi bi-house-heart"></i> ' + (v.visited_this_year ? 'เยี่ยมเพิ่ม' : 'เยี่ยมบ้าน') + '</a> ' : '')
+          + (hasCap('student.edit') ? '<button class="btn btn-ghost btn-sm" data-stu-edit="' + esc(s.id) + '"><i class="bi bi-pencil"></i></button> ' : '')
+          + (hasCap('student.manage') ? '<button class="btn btn-ghost btn-sm" data-stu-del="' + esc(s.id) + '" style="color:#f43f5e"><i class="bi bi-trash"></i></button>' : '')
+          + '</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+      if (r.total_pages > 1) {
+        html += '<div class="pagination">';
+        for (var i = 1; i <= r.total_pages; i++) {
+          html += '<button data-stu-page="' + i + '" class="' + (i === r.page ? 'is-active' : '') + '">' + i + '</button>';
+        }
+        html += '</div>';
+      }
+    }
+    $('#page').innerHTML = html;
+    wireStudents();
   }
 
-  function wireDashboardDocFlow() {
-    var titleEl = $('#doc-title-inline');
-    var folderEl = $('#doc-folder-inline');
-    var contentEl = $('#doc-content-inline');
-    var saveBtn = $('#doc-save-inline');
-    var clearBtn = $('#doc-clear-inline');
-    var openBtn = $('#doc-open-modal');
+  function chip(value, label, count, tone) {
+    var active = (STU_STATE.visit_status === value);
+    return '<button class="vs-chip' + (active ? ' is-active' : '') + (tone ? ' vs-tone-' + tone : '') + '" data-stu-chip="' + esc(value) + '">'
+      + esc(label) + ' <span class="vs-chip-count">' + formatNum(count) + '</span></button>';
+  }
 
-    if (saveBtn) saveBtn.addEventListener('click', submitInlineDoc);
-    if (openBtn) openBtn.addEventListener('click', openDocModal);
-    if (clearBtn) clearBtn.addEventListener('click', function () {
-      if (contentEl) contentEl.value = '';
-      setInlineStatus('ล้างข้อความแล้ว');
-      var result = $('#doc-inline-result');
-      if (result) { result.style.display = 'none'; result.innerHTML = ''; }
-    });
-
-    $$('[data-doc-action]').forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var action = btn.getAttribute('data-doc-action');
-        if (action === 'open-doc-modal') openDocModal();
-        if (action === 'focus-doc-editor' && contentEl) contentEl.focus();
-        if (action === 'prefill-episodes' && folderEl) {
-          folderEl.value = 'episodes';
-          setInlineStatus('ตั้งค่าโฟลเดอร์เป็น episodes แล้ว');
-        }
-        if (action === 'prefill-nested' && folderEl) {
-          folderEl.value = 'novels/เรื่องใหม่/episodes';
-          setInlineStatus('ตั้งค่าโฟลเดอร์แบบหลายชั้นแล้ว');
-        }
+  function wireStudents() {
+    var q = $('#stu-q'), cl = $('#stu-class'), vs = $('#stu-vstatus');
+    var doSearch = function () {
+      STU_STATE.q = q ? q.value : '';
+      STU_STATE.class_level = cl ? cl.value : '';
+      STU_STATE.visit_status = vs ? vs.value : '';
+      STU_STATE.page = 1;
+      Routes['#/students']();
+    };
+    if ($('#stu-search-btn')) $('#stu-search-btn').addEventListener('click', doSearch);
+    if (q) q.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSearch(); });
+    if (vs) vs.addEventListener('change', doSearch);
+    if ($('#stu-add-btn')) $('#stu-add-btn').addEventListener('click', function () { openStudentModal(); });
+    if ($('#stu-add-empty')) $('#stu-add-empty').addEventListener('click', function () { openStudentModal(); });
+    if ($('#stu-import-btn')) $('#stu-import-btn').addEventListener('click', openImportModal);
+    $$('[data-stu-chip]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        STU_STATE.visit_status = b.getAttribute('data-stu-chip');
+        STU_STATE.page = 1;
+        Routes['#/students']();
       });
     });
-
-    function buildPayload() {
-      return {
-        title: String((titleEl && titleEl.value) || '').trim(),
-        subfolder: String((folderEl && folderEl.value) || 'episodes').trim() || 'episodes',
-        content: String((contentEl && contentEl.value) || '')
-      };
-    }
-
-    function submitInlineDoc() {
-      submitDocPayload(buildPayload(), function (doc) {
-        renderInlineResult(doc);
+    $$('[data-stu-edit]').forEach(function (b) {
+      b.addEventListener('click', function () { openStudentModal(b.getAttribute('data-stu-edit')); });
+    });
+    $$('[data-stu-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-stu-del');
+        confirmModal({ title: 'ลบนักเรียน?', message: 'จะปิดการใช้งานนักเรียนคนนี้ (soft delete)', danger: true, okText: 'ลบ' }).then(function (ok) {
+          if (!ok) return;
+          Spinner.show('กำลังลบ...', { stages: ['ตรวจสอบสิทธิ์', 'อัปเดตข้อมูล', 'เสร็จสิ้น'] });
+          call('student.delete', { id: id }).then(function () { Spinner.hide(); toast('ลบเรียบร้อย', 'success'); Routes['#/students'](); })
+            .catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+        });
       });
-    }
+    });
+    $$('[data-stu-page]').forEach(function (b) {
+      b.addEventListener('click', function () { STU_STATE.page = Number(b.getAttribute('data-stu-page')); Routes['#/students'](); });
+    });
+  }
 
-    function openDocModal() {
-      var payload = buildPayload();
+  function openStudentModal(id) {
+    var doRender = function (s) {
+      s = s || { is_active: 'yes', prefix: 'เด็กชาย', gender: 'ชาย' };
+      var html = '<form id="stu-form">'
+        + '<div class="fg-2">'
+        + field('คำนำหน้า', '<select class="select" name="prefix">'
+            + ['เด็กชาย','เด็กหญิง','นาย','นางสาว','นาง'].map(function (o) { return '<option' + (s.prefix === o ? ' selected' : '') + '>' + o + '</option>'; }).join('')
+            + '</select>')
+        + field('รหัสนักเรียน', '<input class="input" name="student_code" value="' + esc(s.student_code||'') + '" placeholder="auto">')
+        + '</div>'
+        + '<div class="fg-3">'
+        + field('ชื่อ <span class="req">*</span>', '<input class="input" name="first_name" value="' + esc(s.first_name||'') + '" required>')
+        + field('นามสกุล <span class="req">*</span>', '<input class="input" name="last_name" value="' + esc(s.last_name||'') + '" required>')
+        + field('ชื่อเล่น', '<input class="input" name="nickname" value="' + esc(s.nickname||'') + '">')
+        + '</div>'
+        + '<div class="fg-3">'
+        + field('เลขบัตร 13 หลัก', '<input class="input" name="citizen_id" value="' + esc(s.citizen_id||'') + '" maxlength="13" inputmode="numeric">')
+        + field('เพศ', '<select class="select" name="gender">'
+            + ['ชาย','หญิง'].map(function (o) { return '<option' + (s.gender === o ? ' selected' : '') + '>' + o + '</option>'; }).join('')
+            + '</select>')
+        + field('วันเกิด', '<input class="input" type="date" name="birth_date" value="' + esc(s.birth_date||'') + '">')
+        + '</div>'
+        + '<div class="fg-2">'
+        + field('ชั้นเรียน <span class="req">*</span>', '<input class="input" name="class_level" value="' + esc(s.class_level||'') + '" placeholder="เช่น ม.1, ป.6" required>')
+        + field('ห้อง', '<input class="input" name="room" value="' + esc(s.room||'') + '" placeholder="1, 2, 3...">')
+        + '</div>'
+        + '<div class="fg-2">'
+        + field('ปีการศึกษา <span class="req">*</span>', '<input class="input" name="academic_year" value="' + esc(s.academic_year||Store.academic_year||'') + '" placeholder="เช่น 2567" inputmode="numeric" maxlength="4">')
+        + field('สถานะ', '<select class="select" name="is_active"><option value="yes"' + ((s.is_active||'yes') === 'yes' ? ' selected' : '') + '>ใช้งาน</option><option value="no"' + ((s.is_active||'yes') === 'no' ? ' selected' : '') + '>ปิดใช้งาน</option></select>')
+        + '</div>'
+        + '<div class="fg-2">'
+        + field('โทรศัพท์', '<input class="input" name="phone" value="' + esc(s.phone||'') + '">')
+        + field('รูปนักเรียน', '<input class="input" type="file" name="photo" accept="image/*">' + (s.photo_url ? '<div style="margin-top:6px"><img src="' + esc(s.photo_url) + '" style="max-height:80px;border-radius:8px"></div>' : ''))
+        + '</div>'
+        + field('ที่อยู่', '<textarea class="textarea" name="address">' + esc(s.address||'') + '</textarea>')
+        + field('หมายเหตุ', '<textarea class="textarea" name="notes">' + esc(s.notes||'') + '</textarea>')
+        + '<input type="hidden" name="id" value="' + esc(s.id||'') + '">'
+        + '<input type="hidden" name="photo_url" value="' + esc(s.photo_url||'') + '">'
+        + '</form>';
       Modal.open({
-        title: 'สร้าง Google Docs จากข้อความนิยาย',
-        large: true,
-        html: ''
-          + '<form id="doc-modal-form">'
-          + field('ชื่อเอกสาร', '<input class="input" name="title" value="' + esc(payload.title) + '" placeholder="เช่น ตอนที่ 1 - จุดเริ่มต้น">')
-          + field('โฟลเดอร์ย่อยใน Drive', '<input class="input" name="subfolder" value="' + esc(payload.subfolder) + '" placeholder="episodes หรือ novels/เรื่องA/episodes">')
-          + field('เนื้อหานิยาย', '<textarea class="textarea" name="content" style="min-height:320px">' + esc(payload.content) + '</textarea>')
-          + '<div id="doc-modal-status" style="font-size:12px;color:var(--ink-muted)">พร้อมบันทึก</div>'
-          + '<div id="doc-modal-result" style="display:none;margin-top:12px"></div>'
-          + '</form>',
-        footer: '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button><button class="btn btn-primary" id="doc-modal-save"><i class="bi bi-check-lg"></i> บันทึกขึ้น Google Docs</button>',
-        onOpen: function () {
-          var save = $('#doc-modal-save');
-          if (!save) return;
-          save.addEventListener('click', function () {
-            var form = $('#doc-modal-form');
-            if (!form) return;
-            var modalPayload = {
-              title: String(form.title.value || '').trim(),
-              subfolder: String(form.subfolder.value || 'episodes').trim() || 'episodes',
-              content: String(form.content.value || '')
+        title: id ? 'แก้ไขข้อมูลนักเรียน' : 'เพิ่มนักเรียนใหม่',
+        html: html, large: true,
+        footer: '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button><button class="btn btn-primary" id="stu-save-btn"><i class="bi bi-check-lg"></i> บันทึก</button>',
+        onOpen: function () { $('#stu-save-btn').addEventListener('click', saveStudent); }
+      });
+    };
+    if (id) {
+      Spinner.show('กำลังโหลดข้อมูล...');
+      call('student.get', { id: id }).then(function (s) { Spinner.hide(); doRender(s); })
+        .catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+    } else doRender();
+  }
+
+  function saveStudent() {
+    var f = $('#stu-form');
+    var data = formToObj(f);
+    if (!data.first_name || !data.last_name || !data.class_level) {
+      alertError('กรอกข้อมูลไม่ครบ', 'กรุณากรอกชื่อ นามสกุล และชั้นเรียน'); return;
+    }
+    var fileEl = f.querySelector('input[name="photo"]');
+    var file = fileEl && fileEl.files[0];
+    var doSave = function () {
+      Spinner.show('กำลังบันทึก...', { stages: ['ตรวจสอบข้อมูล','บันทึกฐานข้อมูล','เสร็จสิ้น'] });
+      delete data.photo;
+      call('student.upsert', data).then(function () { Spinner.hide(); Modal.close(); toast('บันทึกเรียบร้อย','success'); Routes['#/students'](); })
+        .catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+    };
+    if (file) {
+      Spinner.show('กำลังอัปโหลดรูป...', { stages: ['อ่านไฟล์','อัปโหลด','บันทึก'] });
+      window.uploadFile(file, 'students').then(function (r) { data.photo_url = r.url; Spinner.hide(); doSave(); })
+        .catch(function (e) { Spinner.hide(); alertError('อัปโหลดรูปไม่สำเร็จ', e.message); });
+    } else doSave();
+  }
+
+  // ─── Bulk Import (Excel/CSV/Google Sheet) ──────────────────────────
+  var __xlsxLib = null;
+  function loadXLSXLib() {
+    if (typeof XLSX !== 'undefined') return Promise.resolve(window.XLSX);
+    if (__xlsxLib) return __xlsxLib;
+    var sources = [
+      'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+      'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js',
+      'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js'
+    ];
+    __xlsxLib = new Promise(function (resolve, reject) {
+      function tryLoad(idx) {
+        if (typeof XLSX !== 'undefined') return resolve(window.XLSX);
+        if (idx >= sources.length) {
+          __xlsxLib = null;
+          return reject(new Error('โหลด Excel library ไม่ได้ — ลองใช้ไฟล์ .csv แทน'));
+        }
+        var s = document.createElement('script');
+        s.src = sources[idx]; s.async = true; s.crossOrigin = 'anonymous';
+        s.onload = function () {
+          if (typeof XLSX !== 'undefined') resolve(window.XLSX); else tryLoad(idx + 1);
+        };
+        s.onerror = function () { tryLoad(idx + 1); };
+        document.head.appendChild(s);
+      }
+      tryLoad(0);
+    });
+    return __xlsxLib;
+  }
+
+  function parseCsvText(text) {
+    var rows = [];
+    var row = [];
+    var cur = '';
+    var inQuote = false;
+    var i = 0, len = text.length;
+    // Strip BOM
+    if (text.charCodeAt(0) === 0xFEFF) i = 1;
+    while (i < len) {
+      var ch = text.charAt(i);
+      if (inQuote) {
+        if (ch === '"') {
+          if (text.charAt(i+1) === '"') { cur += '"'; i++; }
+          else { inQuote = false; }
+        } else { cur += ch; }
+      } else {
+        if (ch === '"') inQuote = true;
+        else if (ch === ',') { row.push(cur); cur = ''; }
+        else if (ch === '\n') { row.push(cur); rows.push(row); row = []; cur = ''; }
+        else if (ch === '\r') { /* skip */ }
+        else cur += ch;
+      }
+      i++;
+    }
+    if (cur || row.length) { row.push(cur); rows.push(row); }
+    return rows;
+  }
+
+  function openImportModal() {
+    var IMPORT_STATE = { rows: [], batches: [], filename: '', default_class_level: '', default_room: '' };
+    var html = '<div class="imp-section">'
+      + '<div class="imp-step-num">1</div>'
+      + '<div class="imp-step-body">'
+      +   '<div class="imp-step-title">ดาวน์โหลดแม่แบบ (Template)</div>'
+      +   '<div class="imp-step-sub">เปิดในโปรแกรม Excel หรือ Google Sheets เพื่อกรอกข้อมูลนักเรียนทีละแถว</div>'
+      +   '<button class="btn btn-primary" id="imp-download"><i class="bi bi-download"></i> ดาวน์โหลดแม่แบบ CSV</button>'
+      +   '<div style="margin-top:10px;font-size:11px;color:var(--ink-muted)"><i class="bi bi-info-circle"></i> แม่แบบมี header ภาษาไทย + 2 แถวตัวอย่าง · UTF-8 + BOM (เปิด Excel ภาษาไทยได้)</div>'
+      + '</div></div>'
+      + '<div class="imp-section">'
+      + '<div class="imp-step-num">2</div>'
+      + '<div class="imp-step-body">'
+      +   '<div class="imp-step-title">อัปโหลดไฟล์ที่กรอกข้อมูลแล้ว</div>'
+      +   '<div class="imp-step-sub">รองรับไฟล์ .csv และ .xlsx (Excel) — ระบบจะตรวจสอบและ preview ก่อนนำเข้าจริง</div>'
+      +   '<label class="imp-drop" id="imp-drop">'
+      +     '<i class="bi bi-cloud-arrow-up-fill" style="font-size:36px;color:var(--brand-1)"></i>'
+      +     '<div style="font-weight:600;margin-top:8px">คลิกเลือกไฟล์ หรือลากไฟล์มาวาง</div>'
+      +     '<div style="font-size:11px;color:var(--ink-muted);margin-top:4px">.csv หรือ .xlsx</div>'
+      +     '<input type="file" accept=".csv,.xlsx,.xls,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" id="imp-file" hidden>'
+      +   '</label>'
+      + '</div></div>'
+      + '<div class="imp-section">'
+      + '<div class="imp-step-num">3</div>'
+      + '<div class="imp-step-body">'
+      +   '<div class="imp-step-title">หรือดึงข้อมูลจาก Google Sheet</div>'
+      +   '<div class="imp-step-sub">วางลิงก์ Google Sheet หรือ Spreadsheet ID ระบบจะอ่านชีตแรกหรือ gid ในลิงก์ แล้ว preview ก่อนนำเข้า</div>'
+      +   '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">'
+      +     '<input class="input" id="imp-sheet-url" placeholder="https://docs.google.com/spreadsheets/d/..." style="flex:1;min-width:260px">'
+      +     '<button class="btn btn-primary" id="imp-load-sheet"><i class="bi bi-google"></i> โหลดจาก Google Sheet</button>'
+      +   '</div>'
+      +   '<div style="display:flex;gap:8px;align-items:center;margin-top:10px;flex-wrap:wrap">'
+      +     '<input class="input" id="imp-default-class" placeholder="ชั้นเริ่มต้น เช่น ม.1" style="max-width:180px">'
+      +     '<input class="input" id="imp-default-room" placeholder="ห้อง เช่น 1" style="max-width:140px">'
+      +     '<div style="font-size:11px;color:var(--ink-muted)">ใช้เมื่อชีตไม่มีคอลัมน์ชั้น/ห้อง</div>'
+      +   '</div>'
+      + '</div></div>'
+      + '<div id="imp-preview" hidden></div>';
+    Modal.open({
+      title: 'นำเข้านักเรียนจาก Excel / CSV / Google Sheet',
+      html: html, large: true,
+      footer: '<button class="btn btn-ghost" data-modal-close>ปิด</button>'
+        + '<button class="btn btn-success" id="imp-confirm" hidden><i class="bi bi-check-circle-fill"></i> นำเข้าทั้งหมด</button>',
+      onOpen: function () {
+        $('#imp-download').addEventListener('click', downloadTemplate);
+        $('#imp-file').addEventListener('change', function (e) { handleFile(e.target.files[0]); });
+        $('#imp-load-sheet').addEventListener('click', loadGoogleSheet);
+        var drop = $('#imp-drop');
+        drop.addEventListener('dragover', function (e) { e.preventDefault(); drop.classList.add('is-dragover'); });
+        drop.addEventListener('dragleave', function () { drop.classList.remove('is-dragover'); });
+        drop.addEventListener('drop', function (e) {
+          e.preventDefault(); drop.classList.remove('is-dragover');
+          if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+        });
+      }
+    });
+
+    function downloadTemplate() {
+      Spinner.show('กำลังเตรียมแม่แบบ...');
+      call('student.template', {}).then(function (r) {
+        Spinner.hide();
+        var blob = new Blob([r.csv], { type: 'text/csv;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url; a.download = r.filename || 'students_template.csv';
+        document.body.appendChild(a); a.click();
+        setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1000);
+        toast('ดาวน์โหลดแม่แบบเรียบร้อย', 'success', 1800);
+      }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+    }
+
+    function handleFile(file) {
+      if (!file) return;
+      IMPORT_STATE.filename = file.name;
+      var ext = (file.name.split('.').pop() || '').toLowerCase();
+      if (ext === 'csv') readCsv(file);
+      else if (ext === 'xlsx' || ext === 'xls') readExcel(file);
+      else alertError('รูปแบบไฟล์ไม่รองรับ', 'รองรับเฉพาะ .csv และ .xlsx');
+    }
+
+    function loadGoogleSheet() {
+      var url = String(($('#imp-sheet-url') && $('#imp-sheet-url').value) || '').trim();
+      if (!url) { alertError('ยังไม่ได้ระบุลิงก์', 'กรุณาวาง Google Sheet URL หรือ Spreadsheet ID'); return; }
+      Spinner.show('กำลังโหลด Google Sheet...', { stages: ['เปิดไฟล์','อ่านข้อมูล','เตรียม preview'] });
+      call('student.import_sheet', { url: url }, 120000).then(function (r) {
+        Spinner.hide();
+        IMPORT_STATE.filename = 'Google Sheet · ' + (r.sheet_name || '');
+        if (r.is_multi_sheet && r.imports && r.imports.length) {
+        IMPORT_STATE.filename = 'Google Sheet · ' + r.imports.length + ' tabs';
+          IMPORT_STATE.batches = r.imports.map(function (item) {
+            return {
+              rows: item.rows || [],
+              source: 'Google Sheet · ' + (item.sheet_name || ''),
+              default_class_level: item.inferred && item.inferred.class_level || '',
+              default_room: item.inferred && item.inferred.room || ''
             };
-            submitDocPayload(modalPayload, function (doc) {
-              if (titleEl) titleEl.value = modalPayload.title;
-              if (folderEl) folderEl.value = modalPayload.subfolder;
-              if (contentEl) contentEl.value = modalPayload.content;
-              renderModalResult(doc);
+          });
+          renderMultiSheetPreview(r.imports);
+          return;
+        }
+        IMPORT_STATE.batches = [];
+        if (r.inferred) {
+          if (r.inferred.class_level && $('#imp-default-class')) $('#imp-default-class').value = r.inferred.class_level;
+          if (r.inferred.room && $('#imp-default-room')) $('#imp-default-room').value = r.inferred.room;
+        }
+        renderPreview(r.rows || []);
+      }).catch(function (e) {
+        Spinner.hide();
+        alertError('โหลด Google Sheet ไม่สำเร็จ', e.message);
+      });
+    }
+
+    function readCsv(file) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var rows = parseCsvText(String(reader.result));
+        renderPreview(rows);
+      };
+      reader.onerror = function () { alertError('อ่านไฟล์ไม่ได้', 'ลองอีกครั้ง'); };
+      reader.readAsText(file, 'UTF-8');
+    }
+
+    function readExcel(file) {
+      Spinner.show('กำลังโหลด Excel library...', { stages: ['ดาวน์โหลด library','แปลงไฟล์','ตรวจสอบข้อมูล'] });
+      loadXLSXLib().then(function (XLSX) {
+        var reader = new FileReader();
+        reader.onload = function () {
+          try {
+            var wb = XLSX.read(reader.result, { type: 'array' });
+            var ws = wb.Sheets[wb.SheetNames[0]];
+            var rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+            // Clean trailing empty rows
+            while (rows.length && rows[rows.length-1].every(function (c) { return String(c||'').trim() === ''; })) rows.pop();
+            Spinner.hide();
+            renderPreview(rows);
+          } catch (e) { Spinner.hide(); alertError('อ่าน Excel ไม่ได้', e.message); }
+        };
+        reader.onerror = function () { Spinner.hide(); alertError('อ่านไฟล์ไม่ได้', 'ลองอีกครั้ง'); };
+        reader.readAsArrayBuffer(file);
+      }).catch(function (e) {
+        Spinner.hide();
+        alertError('โหลด Excel library ไม่ได้', e.message + '\n\nแนะนำ: บันทึกไฟล์เป็น .csv แล้วลองใหม่');
+      });
+    }
+
+    function renderPreview(rows) {
+      if (!rows.length || rows.length < 2) {
+        alertError('ไฟล์ว่าง', 'ไฟล์ต้องมี header + ข้อมูลอย่างน้อย 1 แถว');
+        return;
+      }
+      IMPORT_STATE.batches = [];
+      IMPORT_STATE.rows = rows;
+      IMPORT_STATE.default_class_level = String(($('#imp-default-class') && $('#imp-default-class').value) || '').trim();
+      IMPORT_STATE.default_room = String(($('#imp-default-room') && $('#imp-default-room').value) || '').trim();
+      var headers = rows[0];
+      var dataRows = rows.slice(1).filter(function (r) { return r.some(function (c) { return String(c||'').trim() !== ''; }); });
+      var maxPreview = Math.min(20, dataRows.length);
+      var html = '<div class="imp-preview-head"><i class="bi bi-table"></i> <strong>Preview · ' + esc(IMPORT_STATE.filename) + '</strong> · '
+        + '<span style="color:var(--ink-muted)">' + dataRows.length + ' แถว (แสดง ' + maxPreview + ' แถวแรก)</span></div>'
+        + '<div class="imp-preview-table-wrap"><table class="imp-preview-table"><thead><tr>'
+        + '<th style="width:36px">#</th>'
+        + headers.map(function (h) { return '<th>' + esc(h) + '</th>'; }).join('')
+        + '</tr></thead><tbody>';
+      for (var i = 0; i < maxPreview; i++) {
+        html += '<tr><td>' + (i+2) + '</td>'
+          + dataRows[i].map(function (c) { return '<td>' + esc(String(c||'')) + '</td>'; }).join('')
+          + '</tr>';
+      }
+      html += '</tbody></table></div>';
+      if (dataRows.length > maxPreview) {
+        html += '<div style="text-align:center;padding:8px;color:var(--ink-muted);font-size:12px">... และอีก ' + (dataRows.length - maxPreview) + ' แถว</div>';
+      }
+      $('#imp-preview').innerHTML = html;
+      $('#imp-preview').hidden = false;
+      $('#imp-confirm').hidden = false;
+      $('#imp-confirm').onclick = function () { doImport(rows); };
+    }
+
+    function renderMultiSheetPreview(imports) {
+      IMPORT_STATE.rows = [];
+      IMPORT_STATE.default_class_level = String(($('#imp-default-class') && $('#imp-default-class').value) || '').trim();
+      IMPORT_STATE.default_room = String(($('#imp-default-room') && $('#imp-default-room').value) || '').trim();
+      var totalRows = imports.reduce(function (sum, item) { return sum + ((item.total_rows || 0)); }, 0);
+      var html = '<div class="imp-preview-head"><i class="bi bi-table"></i> <strong>Preview · ' + esc(IMPORT_STATE.filename) + '</strong> · '
+        + '<span style="color:var(--ink-muted)">' + imports.length + ' tabs / ' + totalRows + ' rows</span></div>'
+        + '<div class="imp-preview-table-wrap"><table class="imp-preview-table"><thead><tr>'
+        + '<th>Tab</th><th>ชั้น</th><th>ห้อง</th><th>Rows</th></tr></thead><tbody>'
+        + imports.map(function (item) {
+            var inferred = item.inferred || {};
+            return '<tr><td>' + esc(item.sheet_name || '-') + '</td><td>' + esc(inferred.class_level || '-') + '</td><td>' + esc(inferred.room || '-') + '</td><td>' + esc(String(item.total_rows || 0)) + '</td></tr>';
+          }).join('')
+        + '</tbody></table></div>'
+        + '<div style="padding-top:8px;font-size:12px;color:var(--ink-muted)">ระบบจะนำเข้าแต่ละแท็บแยกกัน และใช้ชื่อแท็บเพื่อเติมชั้น/ห้องอัตโนมัติเมื่อหัวตารางไม่มีคอลัมน์ชั้น/ห้อง</div>';
+      $('#imp-preview').innerHTML = html;
+      $('#imp-preview').hidden = false;
+      $('#imp-confirm').hidden = false;
+      $('#imp-confirm').onclick = function () { doImport([]); };
+    }
+
+    function doImport(rows) {
+      Spinner.show('กำลังนำเข้าข้อมูล...', { stages: ['ตรวจสอบ header','ตรวจซ้ำเลขบัตร','สร้างนักเรียนใหม่','สรุปผล'] });
+      IMPORT_STATE.default_class_level = String(($('#imp-default-class') && $('#imp-default-class').value) || '').trim();
+      IMPORT_STATE.default_room = String(($('#imp-default-room') && $('#imp-default-room').value) || '').trim();
+      if (IMPORT_STATE.batches && IMPORT_STATE.batches.length) {
+        importBatchQueue(IMPORT_STATE.batches.slice(), {
+          total: 0, inserted: 0, duplicated: 0, failed: 0, errors: [], inserted_codes: []
+        });
+        return;
+      }
+      call('student.bulk_import', {
+        rows: rows,
+        source: IMPORT_STATE.filename,
+        default_class_level: IMPORT_STATE.default_class_level,
+        default_room: IMPORT_STATE.default_room
+      }, 120000).then(function (r) {
+        Spinner.hide();
+        Modal.close();
+        showImportResult(r);
+        Routes['#/students']();
+      }).catch(function (e) { Spinner.hide(); alertError('นำเข้าไม่สำเร็จ', e.message); });
+    }
+
+    function importBatchQueue(queue, summary) {
+      if (!queue.length) {
+        Spinner.hide();
+        Modal.close();
+        showImportResult(summary);
+        Routes['#/students']();
+        return;
+      }
+      var batch = queue.shift();
+      call('student.bulk_import', {
+        rows: batch.rows,
+        source: batch.source,
+        default_class_level: batch.default_class_level || IMPORT_STATE.default_class_level,
+        default_room: batch.default_room || IMPORT_STATE.default_room
+      }, 120000).then(function (r) {
+        summary.total += r.total || 0;
+        summary.inserted += r.inserted || 0;
+        summary.duplicated += r.duplicated || 0;
+        summary.failed += r.failed || 0;
+        summary.inserted_codes = summary.inserted_codes.concat(r.inserted_codes || []);
+        summary.errors = summary.errors.concat(r.errors || []);
+        importBatchQueue(queue, summary);
+      }).catch(function (e) {
+        Spinner.hide();
+        alertError('นำเข้าไม่สำเร็จ', e.message);
+      });
+    }
+
+    function showImportResult(r) {
+      var errHtml = (r.errors && r.errors.length)
+        ? '<div style="margin-top:12px;padding:10px;background:#fef2f2;border-left:4px solid #f43f5e;border-radius:8px;max-height:200px;overflow:auto;text-align:left;font-size:12px"><strong>ข้อผิดพลาด:</strong><ul style="margin:6px 0 0;padding-left:20px">'
+          + r.errors.slice(0, 20).map(function (e) { return '<li>' + esc(e) + '</li>'; }).join('')
+          + (r.errors.length > 20 ? '<li>... และอีก ' + (r.errors.length - 20) + ' รายการ</li>' : '')
+          + '</ul></div>'
+        : '';
+      Swal.fire({
+        icon: r.failed > 0 ? 'warning' : 'success',
+        title: 'นำเข้าเสร็จสิ้น',
+        html: '<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0;text-align:center">'
+          + '<div style="padding:14px;background:#ecfdf5;border-radius:10px;color:#065f46"><div style="font-size:28px;font-weight:800">' + formatNum(r.inserted) + '</div><div style="font-size:11px">สำเร็จ</div></div>'
+          + '<div style="padding:14px;background:#fef3c7;border-radius:10px;color:#92400e"><div style="font-size:28px;font-weight:800">' + formatNum(r.duplicated) + '</div><div style="font-size:11px">ซ้ำ (ข้าม)</div></div>'
+          + '<div style="padding:14px;background:#fef2f2;border-radius:10px;color:#7f1d1d"><div style="font-size:28px;font-weight:800">' + formatNum(r.failed) + '</div><div style="font-size:11px">ไม่สำเร็จ</div></div>'
+          + '</div>' + errHtml,
+        confirmButtonText: 'ตกลง'
+      });
+    }
+  }
+
+  // Helpers
+  function field(label, control, hint) {
+    return '<div class="field"><label>' + label + '</label>' + control + (hint ? '<div class="field-hint">' + esc(hint) + '</div>' : '') + '</div>';
+  }
+  window.field = field;
+  function formToObj(form) {
+    var obj = {};
+    $$('input, select, textarea', form).forEach(function (el) {
+      if (!el.name) return;
+      if (el.type === 'checkbox') obj[el.name] = el.checked;
+      else if (el.type === 'radio') { if (el.checked) obj[el.name] = el.value; }
+      else obj[el.name] = el.value;
+    });
+    return obj;
+  }
+  window.formToObj = formToObj;
+
+  // ════════════════════════════════════════════════════════════
+  // VISITS LIST
+  // ════════════════════════════════════════════════════════════
+  var VIS_STATE = { q: '', status: '', class_level: '', page: 1, academic_year: '' };
+  var VIS_BATCH_SELECTED = {};
+  function syncVisYear() { VIS_STATE.academic_year = Store.academic_year || ''; }
+  Routes['#/visits'] = function () {
+    syncVisYear();
+    var page = $('#page');
+    page.innerHTML = '<div class="sk sk-block" style="height:120px;border-radius:18px"></div>';
+    call('visit.list', VIS_STATE).then(function (r) {
+      if (!$('#page')) return;
+      renderVisits(r);
+    }).catch(function (e) { $('#page').innerHTML = '<div class="card">โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + '</div>'; });
+  };
+  function renderVisits(r) {
+    var st = r.stats || { total_visits: 0, total_students: 0, completed: 0, draft: 0 };
+    var canBatchSave = !!(Store.user && Store.user.role === 'admin') || hasCap('file.manage');
+    var html = pageHero('บันทึกการเยี่ยมบ้าน', 'รายการการเยี่ยมบ้านนักเรียน ปีการศึกษา ' + (VIS_STATE.academic_year || '-'), 'bi-house-heart-fill', [
+      { val: formatNum(st.total_visits), lbl: 'การเยี่ยมทั้งหมด', icon: 'bi-house-heart-fill', color1: '#6366f1', color2: '#8b5cf6' },
+      { val: formatNum(st.total_students), lbl: 'นักเรียนในระบบ', icon: 'bi-people-fill', color1: '#0ea5e9', color2: '#0284c7' },
+      { val: formatNum(st.completed), lbl: 'บันทึกเรียบร้อย', icon: 'bi-check-circle-fill', color1: '#10b981', color2: '#059669' },
+      { val: formatNum(st.draft), lbl: 'ฉบับร่าง', icon: 'bi-pencil-square', color1: '#f59e0b', color2: '#d97706' }
+    ]);
+    html += '<div class="toolbar">'
+      + '<div class="search"><i class="bi bi-search"></i><input class="input" id="vis-q" placeholder="ค้นหาด้วยชื่อนักเรียน / เลขที่..." value="' + esc(VIS_STATE.q) + '"></div>'
+      + '<select class="select" id="vis-status" style="max-width:160px"><option value="">ทุกสถานะ</option>'
+      + ['draft','completed','approved'].map(function (k) { return '<option value="' + k + '"' + (VIS_STATE.status === k ? ' selected' : '') + '>' + esc(Store.boot.statuses[k]) + '</option>'; }).join('')
+      + '</select>'
+      + '<button class="btn btn-ghost" id="vis-search-btn"><i class="bi bi-funnel-fill"></i> ค้นหา</button>'
+      + (canBatchSave ? '<button class="btn btn-ghost" id="vis-drive-batch"><i class="bi bi-cloud-arrow-up-fill"></i> บันทึกลง Drive (Batch: <span id="vis-batch-count">0</span>)</button>' : '')
+      + (hasCap('visit.create') ? '<a class="btn btn-primary" href="#/visits/new" style="margin-left:auto"><i class="bi bi-plus-lg"></i> เยี่ยมบ้านใหม่</a>' : '')
+      + '</div>';
+    if (!r.items.length) {
+      html += '<div class="card"><div class="empty-state"><i class="bi bi-house-heart"></i><p>ยังไม่มีรายการเยี่ยมบ้าน</p></div></div>';
+    } else {
+      html += '<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table"><thead>'
+        + '<tr>'
+        + (canBatchSave ? '<th style="width:36px"><input type="checkbox" id="vis-batch-all"></th>' : '')
+        + '<th>เลขที่</th><th>นักเรียน</th><th>ชั้น/ห้อง</th><th>ผู้บันทึก</th><th>วันที่เยี่ยม</th><th>สถานะ</th><th>การจัดการ</th></tr>'
+        + '</thead><tbody>';
+      r.items.forEach(function (v) {
+        var vid = String(v.id || '');
+        html += '<tr>'
+          + (canBatchSave ? '<td><input type="checkbox" data-vis-batch-id="' + esc(vid) + '"' + (VIS_BATCH_SELECTED[vid] ? ' checked' : '') + '></td>' : '')
+          + '<td><strong>' + esc(v.visit_code) + '</strong></td>'
+          + '<td>' + esc(v._student.name) + '</td>'
+          + '<td>' + esc(v._student.class_level||'') + (v._student.room ? '/' + esc(v._student.room) : '') + '</td>'
+          + '<td>' + esc(v._teacher.name||'-') + '</td>'
+          + '<td>' + TH.date(v.visit_date) + '</td>'
+          + '<td>' + statusBadge(v.status) + '</td>'
+          + '<td>'
+          + '<a class="btn btn-ghost btn-sm" href="#/visits/view/' + esc(v.id) + '"><i class="bi bi-eye"></i></a> '
+          + '<a class="btn btn-ghost btn-sm" href="#/visits/print/' + esc(v.id) + '"><i class="bi bi-printer"></i></a> '
+          + (hasCap('visit.edit') || String(v.teacher_id) === String(Store.user.id) ? '<a class="btn btn-ghost btn-sm" href="#/visits/edit/' + esc(v.id) + '"><i class="bi bi-pencil"></i></a> ' : '')
+          + (hasCap('visit.manage') ? '<button class="btn btn-ghost btn-sm" data-vis-del="' + esc(v.id) + '" style="color:#f43f5e"><i class="bi bi-trash"></i></button>' : '')
+          + '</td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+      if (r.total_pages > 1) {
+        html += '<div class="pagination">';
+        for (var i = 1; i <= r.total_pages; i++) {
+          html += '<button data-vis-page="' + i + '" class="' + (i === r.page ? 'is-active' : '') + '">' + i + '</button>';
+        }
+        html += '</div>';
+      }
+    }
+    $('#page').innerHTML = html;
+    var q = $('#vis-q'), st = $('#vis-status');
+    var doSearch = function () { VIS_STATE.q = q.value; VIS_STATE.status = st.value; VIS_STATE.page = 1; Routes['#/visits'](); };
+    if ($('#vis-search-btn')) $('#vis-search-btn').addEventListener('click', doSearch);
+    if (q) q.addEventListener('keydown', function (e) { if (e.key === 'Enter') doSearch(); });
+    if (canBatchSave) wireVisitsBatchActions(r.items || []);
+    $$('[data-vis-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-vis-del');
+        confirmModal({ title: 'ลบรายการ?', message: 'รายการนี้จะถูกลบถาวรพร้อมข้อมูลสมาชิกครัวเรือน', danger: true }).then(function (ok) {
+          if (!ok) return;
+          Spinner.show('กำลังลบ...');
+          call('visit.delete', { id: id }).then(function () { Spinner.hide(); toast('ลบเรียบร้อย','success'); Routes['#/visits'](); })
+            .catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+        });
+      });
+    });
+    $$('[data-vis-page]').forEach(function (b) {
+      b.addEventListener('click', function () { VIS_STATE.page = Number(b.getAttribute('data-vis-page')); Routes['#/visits'](); });
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // VISIT FORM (NEW/EDIT) — Multi-step Wizard
+  // ════════════════════════════════════════════════════════════
+  var WIZ = null;
+  var VISIT_STEPS = [
+    { id: 1, title: 'ข้อมูลนักเรียน + ผู้ปกครอง', icon: 'bi-person-vcard-fill', num: 'STEP 1' },
+    { id: 2, title: 'รายได้ครัวเรือน', icon: 'bi-cash-stack', num: 'STEP 2' },
+    { id: 3, title: 'สถานะครัวเรือน + ความสัมพันธ์', icon: 'bi-house-heart-fill', num: 'STEP 3' },
+    { id: 4, title: 'พฤติกรรมและความเสี่ยง', icon: 'bi-heart-pulse-fill', num: 'STEP 4' },
+    { id: 5, title: 'รูปภาพ + บันทึก', icon: 'bi-camera-fill', num: 'STEP 5' }
+  ];
+
+  Routes['#/visits/new'] = function (hash) {
+    initWizard(null, hash);
+  };
+  Routes['#/visits/edit'] = function (hash) {
+    var id = hash.split('/')[3];
+    if (!id) { location.hash = '#/visits'; return; }
+    Spinner.show('กำลังโหลดข้อมูล...');
+    call('visit.get', { id: id }).then(function (d) {
+      Spinner.hide();
+      initWizard(d);
+    }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); location.hash = '#/visits'; });
+  };
+  Routes['#/visits/view'] = function (hash) {
+    var id = hash.split('/')[3];
+    if (!id) { location.hash = '#/visits'; return; }
+    Spinner.show('กำลังโหลดข้อมูล...');
+    call('visit.get', { id: id }).then(function (d) {
+      Spinner.hide();
+      renderVisitView(d);
+    }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+  };
+
+  function initWizard(loaded, hash) {
+    var preStudentId = '';
+    if (hash && hash.indexOf('?student=') >= 0) {
+      preStudentId = decodeURIComponent(hash.split('?student=')[1]);
+    }
+    var isNew = !loaded;
+    WIZ = {
+      step: 1, maxStep: isNew ? 1 : VISIT_STEPS.length,
+      isNew: isNew,
+      visit: loaded ? loaded.visit : { student_id: preStudentId, visit_date: TH.iso(new Date()), school_name: Store.boot.settings.org_name || '', education_area: Store.boot.settings.education_area || '', has_guardian: 'yes' },
+      members: loaded ? loaded.members : [emptyMember(1)],
+      student: loaded ? loaded.student : null,
+      mapping: loaded ? loaded.homeroom_teachers : null,
+      photos: {}
+    };
+    if (!WIZ.members || !WIZ.members.length) WIZ.members = [emptyMember(1)];
+    renderWizard();
+  }
+  function emptyMember(seq) {
+    return { seq: seq, relation: '', age: '', disability: '', income_wage: '', income_agri: '', income_business: '', income_welfare: '', income_other: '', total: 0 };
+  }
+
+  function renderWizard() {
+    if (!$('#page')) return;
+    var step = WIZ.step;
+    var pct = ((step - 1) / (VISIT_STEPS.length - 1)) * 100;
+    var html = pageHero(WIZ.isNew ? 'บันทึกการเยี่ยมบ้านใหม่' : 'แก้ไขการเยี่ยมบ้าน', 'กรอกข้อมูลตามแบบฟอร์มราชการ', 'bi-house-heart-fill');
+    html += '<div class="wiz-progress" style="--pct:' + pct + '%">'
+      + VISIT_STEPS.map(function (s) {
+          var canJump = !WIZ.isNew || s.id <= WIZ.maxStep;
+          var cls = s.id < step ? 'is-done' : s.id === step ? 'is-active' : '';
+          cls += canJump ? ' is-jumpable' : ' is-locked';
+          return '<div class="wiz-step ' + cls + '" data-wiz-jump="' + s.id + '">'
+            + '<div class="wiz-step-circle"><i class="bi ' + (s.id < step ? 'bi-check-lg' : s.icon) + '"></i></div>'
+            + '<div class="wiz-step-label">' + esc(s.title) + '</div></div>';
+        }).join('') + '</div>';
+
+    html += '<div class="wiz-pane" id="wiz-pane">';
+    if (step === 1) html += renderStep1();
+    else if (step === 2) html += renderStep2();
+    else if (step === 3) html += renderStep3();
+    else if (step === 4) html += renderStep4();
+    else if (step === 5) html += renderStep5();
+    html += '</div>';
+
+    html += '<div class="wiz-nav">'
+      + '<button class="btn btn-ghost" id="wiz-prev"' + (step === 1 ? ' disabled' : '') + '><i class="bi bi-chevron-left"></i> ย้อนกลับ</button>'
+      + '<div class="wiz-pill">ขั้นที่ ' + step + ' จาก ' + VISIT_STEPS.length + '</div>'
+      + (step < VISIT_STEPS.length
+          ? '<button class="btn btn-primary" id="wiz-next">ถัดไป <i class="bi bi-chevron-right"></i></button>'
+          : '<button class="btn btn-success" id="wiz-save"><i class="bi bi-check-circle-fill"></i> บันทึก</button>')
+      + '</div>';
+
+    $('#page').innerHTML = html;
+    wireWizard();
+  }
+
+  function wireWizard() {
+    $$('[data-wiz-jump]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        var to = Number(el.getAttribute('data-wiz-jump'));
+        var canJump = !WIZ.isNew || to <= WIZ.maxStep;
+        if (!canJump || to === WIZ.step) return;
+        captureStep();
+        WIZ.step = to;
+        renderWizard();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      });
+    });
+    if ($('#wiz-prev')) $('#wiz-prev').addEventListener('click', function () {
+      captureStep(); WIZ.step--; renderWizard(); window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    if ($('#wiz-next')) $('#wiz-next').addEventListener('click', function () {
+      captureStep();
+      WIZ.step++;
+      if (WIZ.step > WIZ.maxStep) WIZ.maxStep = WIZ.step;
+      renderWizard();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+    if ($('#wiz-save')) $('#wiz-save').addEventListener('click', function () { captureStep(); saveVisit(); });
+    // Inline wiring per step
+    if (WIZ.step === 1) wireStep1();
+    if (WIZ.step === 2) wireStep2();
+    if (WIZ.step === 3) wireStep3();
+    if (WIZ.step === 4) wireStep4();
+    if (WIZ.step === 5) wireStep5();
+  }
+
+  // ─── STEP 1: Student + Guardian ───────────────────────────
+  function renderStep1() {
+    var v = WIZ.visit;
+    var html = '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-mortarboard-fill"></i></div>'
+      + '<div><div class="wiz-section-title">ข้อมูลโรงเรียน + นักเรียน</div><div class="wiz-section-sub">เลือกนักเรียนที่จะเยี่ยม + ระบุข้อมูลโรงเรียน</div></div></div>'
+      + '<div class="fg-2">'
+      + field('โรงเรียน <span class="req">*</span>', '<input class="input" data-field="school_name" value="' + esc(v.school_name||'') + '">')
+      + field('สพป./สพม.', '<input class="input" data-field="education_area" value="' + esc(v.education_area||'') + '">')
+      + '</div>'
+      + '<div class="fg-2">'
+      + field('นักเรียน <span class="req">*</span>', '<div style="display:flex;gap:6px"><input class="input" id="stu-display" value="' + esc(WIZ.student ? studentName(WIZ.student) + ' · ' + (WIZ.student.class_level||'') + (WIZ.student.room ? '/' + WIZ.student.room : '') : '') + '" placeholder="คลิกเพื่อเลือกนักเรียน" readonly style="cursor:pointer"><button type="button" class="btn btn-ghost" id="stu-pick-btn"><i class="bi bi-search"></i></button></div><input type="hidden" data-field="student_id" value="' + esc(v.student_id||'') + '">')
+      + field('วันที่เยี่ยม <span class="req">*</span>', '<input class="input" type="date" data-field="visit_date" value="' + esc(v.visit_date||TH.iso(new Date())) + '">')
+      + '</div></div>';
+
+    html += '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-person-fill"></i></div>'
+      + '<div><div class="wiz-section-title">ข้อมูลผู้ปกครอง</div></div></div>'
+      + radioRow('has_guardian', v.has_guardian||'yes', [{ v:'yes', l:'มีผู้ปกครอง'}, { v:'no', l:'ไม่มีผู้ปกครอง'}])
+      + '<div class="fg-3">'
+      + field('ชื่อผู้ปกครอง', '<input class="input" data-field="guardian_first_name" value="' + esc(v.guardian_first_name||'') + '">')
+      + field('นามสกุล', '<input class="input" data-field="guardian_last_name" value="' + esc(v.guardian_last_name||'') + '">')
+      + field('เบอร์โทรศัพท์', '<input class="input" data-field="guardian_phone" value="' + esc(v.guardian_phone||'') + '">')
+      + '</div>'
+      + '<div class="fg-3">'
+      + field('ความสัมพันธ์', '<input class="input" data-field="guardian_relation" value="' + esc(v.guardian_relation||'') + '" placeholder="บิดา/มารดา/ปู่/ย่า...">')
+      + field('อาชีพ', '<input class="input" data-field="guardian_occupation" value="' + esc(v.guardian_occupation||'') + '">')
+      + field('การศึกษาสูงสุด', '<input class="input" data-field="guardian_education" value="' + esc(v.guardian_education||'') + '">')
+      + '</div>'
+      + '<div class="fg-2">'
+      + field('เลขบัตรประชาชน 13 หลัก', '<input class="input" data-field="guardian_citizen_id" value="' + esc(v.guardian_citizen_id||'') + '" maxlength="13" inputmode="numeric">')
+      + '<div>' + checkRow('guardian_no_id', v.guardian_no_id, 'ไม่มีบัตรประจำตัวประชาชน')
+        + checkRow('guardian_welfare_registered', v.guardian_welfare_registered, 'เคยลงทะเบียนสวัสดิการแห่งรัฐ (ลงทะเบียนคนจน)') + '</div>'
+      + '</div></div>';
+    return html;
+  }
+  function wireStep1() {
+    if ($('#stu-pick-btn')) $('#stu-pick-btn').addEventListener('click', openStudentPicker);
+    if ($('#stu-display')) $('#stu-display').addEventListener('click', openStudentPicker);
+    // If student preselected, fetch info
+    if (WIZ.visit.student_id && !WIZ.student) {
+      call('student.get', { id: WIZ.visit.student_id }).then(function (s) {
+        WIZ.student = s;
+        if ($('#stu-display')) $('#stu-display').value = studentName(s) + ' · ' + (s.class_level||'') + (s.room ? '/' + s.room : '');
+      }).catch(function () {});
+    }
+  }
+
+  function openStudentPicker() {
+    Spinner.show('กำลังโหลด...');
+    call('student.list', { per_page: 500 }).then(function (r) {
+      Spinner.hide();
+      var st = r.stats || { total: 0, visited_this_year: 0, not_visited: 0 };
+
+      // ── Extract unique class levels + rooms (สำหรับ filter) ──
+      var classMap = {};
+      var roomMap = {};
+      r.items.forEach(function (s) {
+        var c = String(s.class_level || '').trim();
+        var rm = String(s.room || '').trim();
+        if (c) {
+          classMap[c] = (classMap[c] || 0) + 1;
+          var combo = c + (rm ? '/' + rm : '');
+          if (combo) roomMap[combo] = (roomMap[combo] || 0) + 1;
+        }
+      });
+      var classList = Object.keys(classMap).sort(function (a, b) {
+        // Natural sort for ม.1, ม.2, ป.6 etc.
+        return a.localeCompare(b, 'th', { numeric: true });
+      });
+      var roomList = Object.keys(roomMap).sort(function (a, b) {
+        return a.localeCompare(b, 'th', { numeric: true });
+      });
+
+      // Sort items by class_level + room + name
+      var sorted = r.items.slice().sort(function (a, b) {
+        var ca = String(a.class_level||''), cb = String(b.class_level||'');
+        if (ca !== cb) return ca.localeCompare(cb, 'th', { numeric: true });
+        var ra = String(a.room||''), rb = String(b.room||'');
+        if (ra !== rb) return ra.localeCompare(rb, 'th', { numeric: true });
+        var na = String(a.first_name||''), nb = String(b.first_name||'');
+        return na.localeCompare(nb, 'th');
+      });
+
+      var html = '<div style="display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap;align-items:center">'
+        + '<div style="flex:1;min-width:200px;position:relative">'
+        +   '<i class="bi bi-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-muted)"></i>'
+        +   '<input class="input" id="sp-q" placeholder="ค้นหานักเรียน..." style="padding-left:36px">'
+        + '</div>'
+        + '<select class="select" id="sp-class" style="max-width:140px">'
+        +   '<option value="">ทุกชั้น</option>'
+        +   classList.map(function (c) { return '<option value="' + esc(c) + '">' + esc(c) + ' (' + classMap[c] + ')</option>'; }).join('')
+        + '</select>'
+        + '<select class="select" id="sp-room" style="max-width:140px"><option value="">ทุกห้อง</option></select>'
+        + '<select class="select" id="sp-filter" style="max-width:180px">'
+        +   '<option value="">ทุกสถานะ</option>'
+        +   '<option value="not_visited">ยังไม่เยี่ยม (ปีนี้)</option>'
+        +   '<option value="visited">เยี่ยมแล้ว (ปีนี้)</option>'
+        + '</select>'
+        + '</div>'
+        + '<div style="display:flex;gap:6px;margin-bottom:10px;font-size:11px">'
+        + '<div id="sp-stat-visited" style="flex:1;padding:6px 10px;background:#ecfdf5;color:#065f46;border-radius:8px;text-align:center"><strong>' + formatNum(st.visited_this_year) + '</strong> เยี่ยมแล้ว</div>'
+        + '<div id="sp-stat-notvisited" style="flex:1;padding:6px 10px;background:#fef3c7;color:#92400e;border-radius:8px;text-align:center"><strong>' + formatNum(st.not_visited) + '</strong> ยังไม่เยี่ยม</div>'
+        + '<div id="sp-stat-total" style="flex:1;padding:6px 10px;background:#dbeafe;color:#1e40af;border-radius:8px;text-align:center"><strong>' + formatNum(st.total) + '</strong> รวม</div>'
+        + '</div>'
+        + '<div id="sp-list" style="max-height:420px;overflow:auto;min-height:120px">'
+        + sorted.map(spItem).join('')
+        + '</div>'
+        + '<div id="sp-empty" hidden style="padding:30px;text-align:center;color:var(--ink-muted)"><i class="bi bi-search" style="font-size:32px;opacity:.4"></i><p style="margin:8px 0 0">ไม่พบนักเรียนตามเงื่อนไขที่เลือก</p></div>';
+      Modal.open({
+        title: 'เลือกนักเรียน · ' + (r.academic_year ? 'ปีการศึกษา ' + r.academic_year : ''),
+        html: html, large: true,
+        onOpen: function () {
+          var qEl = $('#sp-q'), cEl = $('#sp-class'), rmEl = $('#sp-room'), fEl = $('#sp-filter');
+
+          function rebuildRoomOptions() {
+            var selectedClass = cEl.value;
+            var rooms = {};
+            sorted.forEach(function (s) {
+              if (selectedClass && String(s.class_level) !== selectedClass) return;
+              var rm = String(s.room || '').trim();
+              if (rm) rooms[rm] = (rooms[rm] || 0) + 1;
+            });
+            var roomKeys = Object.keys(rooms).sort(function (a, b) { return a.localeCompare(b, 'th', { numeric: true }); });
+            var prev = rmEl.value;
+            rmEl.innerHTML = '<option value="">ทุกห้อง</option>'
+              + roomKeys.map(function (rm) { return '<option value="' + esc(rm) + '">ห้อง ' + esc(rm) + ' (' + rooms[rm] + ')</option>'; }).join('');
+            if (prev && roomKeys.indexOf(prev) >= 0) rmEl.value = prev;
+          }
+
+          function applyFilter() {
+            var q = qEl.value.toLowerCase().trim();
+            var c = cEl.value;
+            var rm = rmEl.value;
+            var f = fEl.value;
+            var visibleCount = 0, visitedShown = 0, notVisitedShown = 0;
+            $$('.sp-item').forEach(function (el) {
+              var matchQ = !q || el.textContent.toLowerCase().indexOf(q) >= 0;
+              var matchC = !c || el.getAttribute('data-class') === c;
+              var matchR = !rm || el.getAttribute('data-room') === rm;
+              var visited = el.getAttribute('data-visited') === '1';
+              var matchF = !f || (f === 'visited' && visited) || (f === 'not_visited' && !visited);
+              var show = matchQ && matchC && matchR && matchF;
+              el.style.display = show ? '' : 'none';
+              if (show) {
+                visibleCount++;
+                if (visited) visitedShown++; else notVisitedShown++;
+              }
+            });
+            // Update stats bar
+            var sv = $('#sp-stat-visited'); if (sv) sv.innerHTML = '<strong>' + formatNum(visitedShown) + '</strong> เยี่ยมแล้ว';
+            var sn = $('#sp-stat-notvisited'); if (sn) sn.innerHTML = '<strong>' + formatNum(notVisitedShown) + '</strong> ยังไม่เยี่ยม';
+            var sa = $('#sp-stat-total'); if (sa) sa.innerHTML = '<strong>' + formatNum(visibleCount) + '</strong> รวม';
+            // Empty state
+            var emptyEl = $('#sp-empty');
+            if (emptyEl) emptyEl.hidden = visibleCount > 0;
+          }
+
+          if (qEl) qEl.addEventListener('input', applyFilter);
+          if (cEl) cEl.addEventListener('change', function () { rebuildRoomOptions(); applyFilter(); });
+          if (rmEl) rmEl.addEventListener('change', applyFilter);
+          if (fEl) fEl.addEventListener('change', applyFilter);
+
+          rebuildRoomOptions();
+          setTimeout(function () { if (qEl) try { qEl.focus(); } catch (e) {} }, 100);
+
+          $$('.sp-item').forEach(function (el) {
+            el.addEventListener('click', function () {
+              var id = el.getAttribute('data-id');
+              var s = sorted.filter(function (x) { return x.id === id; })[0];
+              pickStudent(s);
             });
           });
         }
       });
-    }
-
-    function submitDocPayload(payload, onSuccess) {
-      if (!payload.title) {
-        alertWarning('ยังไม่ได้ตั้งชื่อเอกสาร', 'กรุณาระบุชื่อเอกสารก่อนบันทึก');
-        return;
+    }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+  }
+  function pickStudent(s) {
+    if (!s) return;
+    var dateField = document.querySelector('[data-field="visit_date"]');
+    var visitDate = dateField ? dateField.value : (WIZ.visit.visit_date || TH.iso(new Date()));
+    // Pre-flight duplicate check
+    Spinner.show('กำลังตรวจสอบ...', { stages: ['ตรวจประวัติการเยี่ยม','ค้นข้อมูลซ้ำ','เกือบเสร็จ'] });
+    call('visit.check_duplicate', { student_id: s.id, visit_date: visitDate }).then(function (r) {
+      Spinner.hide();
+      if (r && r.duplicate) {
+        showDuplicateWarning(s, r.duplicate);
+      } else {
+        confirmPickStudent(s);
       }
-      if (!payload.content.trim()) {
-        alertWarning('ยังไม่มีข้อความ', 'กรุณาวางเนื้อหานิยายก่อนอัปโหลด');
-        return;
-      }
-
-      setInlineStatus('กำลังสร้าง Google Docs...');
-      setModalStatus('กำลังสร้าง Google Docs...');
-      if (saveBtn) saveBtn.disabled = true;
-      if (Spinner) {
-        Spinner.show('กำลังสร้างเอกสาร...', {
-          stages: ['สร้างไฟล์', 'บันทึกข้อความ', 'ย้ายเข้าโฟลเดอร์ Drive']
+    }).catch(function (e) {
+      Spinner.hide();
+      // ถ้า check ล้มเหลว — ปล่อยเลือกได้ (server จะ guard อีกชั้นตอน save)
+      confirmPickStudent(s);
+    });
+  }
+  function confirmPickStudent(s) {
+    WIZ.visit.student_id = s.id;
+    WIZ.student = s;
+    Spinner.show('กำลังโหลดข้อมูลครูประจำชั้น...');
+    call('mapping.get_for_student', { student_id: s.id }).then(function(m) {
+      WIZ.mapping = m;
+      Spinner.hide();
+      Modal.close();
+      if ($('#stu-display')) $('#stu-display').value = studentName(s) + ' · ' + (s.class_level||'') + (s.room ? '/' + s.room : '');
+      var hidden = document.querySelector('[data-field="student_id"]');
+      if (hidden) hidden.value = s.id;
+      toast('เลือกนักเรียนเรียบร้อย', 'success', 1500);
+    }).catch(function(e) {
+      WIZ.mapping = null;
+      Spinner.hide();
+      Modal.close();
+      if ($('#stu-display')) $('#stu-display').value = studentName(s) + ' · ' + (s.class_level||'') + (s.room ? '/' + s.room : '');
+      var hidden = document.querySelector('[data-field="student_id"]');
+      if (hidden) hidden.value = s.id;
+      toast('เลือกนักเรียนเรียบร้อย', 'success', 1500);
+    });
+  }
+  function showDuplicateWarning(student, dup) {
+    var statusLabel = (Store.boot.statuses && Store.boot.statuses[dup.status]) || dup.status;
+    var sameDay = String(dup.visit_date||'').substring(0,10) === TH.iso(new Date());
+    var html = '<div style="text-align:center;margin-bottom:14px">'
+      + '<div style="width:64px;height:64px;border-radius:50%;background:linear-gradient(135deg,#fef3c7,#fbbf24);color:#92400e;font-size:30px;display:flex;align-items:center;justify-content:center;margin:0 auto 10px"><i class="bi bi-exclamation-triangle-fill"></i></div>'
+      + '<div style="font-size:16px;font-weight:700;color:#92400e">พบบันทึกการเยี่ยมบ้านแล้ว</div>'
+      + '<div style="font-size:13px;color:var(--ink-muted);margin-top:4px">' + esc(studentName(student)) + (sameDay ? ' · <strong style="color:#dc2626">วันเดียวกัน</strong>' : ' · ในปีการศึกษานี้') + '</div>'
+      + '</div>'
+      + '<div style="background:#fef3c7;border-left:4px solid #f59e0b;border-radius:10px;padding:14px;margin-bottom:14px">'
+      + '<div style="font-size:11px;color:#92400e;text-transform:uppercase;letter-spacing:.05em;font-weight:700">บันทึกที่มีอยู่</div>'
+      + '<div style="display:grid;grid-template-columns:auto 1fr;gap:6px 14px;margin-top:8px;font-size:13px">'
+      + '<div style="color:var(--ink-muted)">เลขที่:</div><div><strong>' + esc(dup.visit_code) + '</strong></div>'
+      + '<div style="color:var(--ink-muted)">วันที่เยี่ยม:</div><div>' + TH.dateLong(dup.visit_date) + '</div>'
+      + '<div style="color:var(--ink-muted)">ผู้บันทึก:</div><div>' + esc(dup.teacher_name||'-') + '</div>'
+      + '<div style="color:var(--ink-muted)">สถานะ:</div><div>' + statusBadge(dup.status) + '</div>'
+      + '</div></div>'
+      + (sameDay
+          ? '<div style="background:#fee2e2;border-left:4px solid #dc2626;border-radius:10px;padding:12px;font-size:12px;color:#7f1d1d"><i class="bi bi-shield-exclamation"></i> <strong>ไม่อนุญาตให้บันทึกซ้ำในวันเดียวกัน</strong> — กรุณาเลือก "ดูบันทึกเดิม" หรือ "แก้ไขบันทึกเดิม"</div>'
+          : '<div style="background:#fffbeb;border:1px solid #fed7aa;border-radius:10px;padding:12px;font-size:12px;color:#78350f"><i class="bi bi-info-circle-fill"></i> หากต้องการบันทึกครั้งที่ 2 ในปีนี้ (เช่นเยี่ยมติดตาม) ให้กด "บันทึกใหม่"</div>');
+    var footer = '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button>'
+      + '<a class="btn btn-ghost" href="#/visits/view/' + esc(dup.id) + '" data-modal-close><i class="bi bi-eye"></i> ดูบันทึกเดิม</a>'
+      + '<a class="btn btn-warning" href="#/visits/edit/' + esc(dup.id) + '" data-modal-close><i class="bi bi-pencil"></i> แก้ไขบันทึกเดิม</a>'
+      + (sameDay ? '' : '<button class="btn btn-primary" id="dup-force-btn"><i class="bi bi-plus-lg"></i> บันทึกใหม่ (ครั้งที่ 2)</button>');
+    Modal.open({
+      title: 'นักเรียนคนนี้มีบันทึกแล้ว', html: html, footer: footer,
+      onOpen: function () {
+        var fb = $('#dup-force-btn');
+        if (fb) fb.addEventListener('click', function () {
+          WIZ.forceCreate = true;
+          confirmPickStudent(student);
         });
       }
+    });
+  }
+  function spItem(s) {
+    var v = s._visit || {};
+    var visited = v.visited_this_year;
+    var bgAvatar = visited
+      ? 'linear-gradient(135deg,#34d399,#10b981)'
+      : 'linear-gradient(135deg,#a5b4fc,#c084fc)';
+    var rightBadge = visited
+      ? '<span class="vs-badge vs-done"><i class="bi bi-check-circle-fill"></i> เยี่ยมแล้ว</span>'
+      : (v.ever_visited
+          ? '<span class="vs-badge vs-old"><i class="bi bi-clock-history"></i> เคยเยี่ยม</span>'
+          : '<span class="vs-badge vs-not"><i class="bi bi-dash-circle"></i> ยังไม่เยี่ยม</span>');
+    return '<div class="sp-item" data-id="' + esc(s.id) + '" data-visited="' + (visited ? '1' : '0') + '" data-class="' + esc(s.class_level||'') + '" data-room="' + esc(s.room||'') + '" style="padding:10px 12px;border:1px solid var(--line);border-radius:10px;margin-bottom:6px;cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s">'
+      + '<div style="width:38px;height:38px;border-radius:50%;background:' + bgAvatar + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;flex-shrink:0">' + esc((s.first_name||'?').charAt(0)) + '</div>'
+      + '<div style="flex:1;min-width:0"><div style="font-weight:600">' + esc(studentName(s)) + (s.nickname ? ' <span style="color:var(--ink-muted);font-size:11px">(' + esc(s.nickname) + ')</span>' : '') + '</div>'
+      + '<div style="font-size:11px;color:var(--ink-muted)">' + esc(s.student_code||'') + ' · ' + esc(s.class_level||'') + (s.room ? '/' + esc(s.room) : '')
+      + (v.last_date ? ' · ล่าสุด ' + TH.date(v.last_date) : '')
+      + '</div></div>'
+      + '<div style="text-align:right">' + rightBadge + '</div>'
+      + '<i class="bi bi-chevron-right" style="color:var(--ink-muted);flex-shrink:0"></i></div>';
+  }
 
-      call('file.create_doc', payload, 60000).then(function (doc) {
-        setInlineStatus('สร้างเอกสารสำเร็จ');
-        setModalStatus('สร้างเอกสารสำเร็จ');
-        if (typeof onSuccess === 'function') onSuccess(doc);
-        alertSuccess('อัปโหลดสำเร็จ', 'สร้าง Google Docs เรียบร้อยแล้ว');
-      }).catch(function (e) {
-        setInlineStatus('สร้างเอกสารไม่สำเร็จ');
-        setModalStatus('สร้างเอกสารไม่สำเร็จ');
-        alertError('สร้าง Google Docs ไม่สำเร็จ', e.message || 'เกิดข้อผิดพลาด');
-      }).finally(function () {
-        if (saveBtn) saveBtn.disabled = false;
-        if (Spinner) Spinner.hide();
+  function openTeacherPicker(callback) {
+    Spinner.show('กำลังโหลดรายชื่อครู...');
+    call('user.list', { per_page: 500 }).then(function (r) {
+      Spinner.hide();
+      var items = r.items || [];
+      var html = '<div style="margin-bottom:12px;position:relative">'
+        + '<i class="bi bi-search" style="position:absolute;left:12px;top:50%;transform:translateY(-50%);color:var(--ink-muted)"></i>'
+        + '<input class="input" id="tp-q" placeholder="ค้นหาชื่อครู..." style="padding-left:36px">'
+        + '</div>'
+        + '<div id="tp-list" style="max-height:400px;overflow-y:auto;border:1px solid var(--border-color);border-radius:12px;background:var(--bg-panel)"></div>';
+
+      Modal.open({
+        title: 'เลือกครู',
+        html: html,
+        footer: '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button>',
+        onOpen: function () {
+          var input = $('#tp-q');
+          var list = $('#tp-list');
+          function render(q) {
+            q = (q || '').toLowerCase();
+            var filtered = items.filter(function (u) {
+              return u.full_name.toLowerCase().indexOf(q) >= 0 || u.username.toLowerCase().indexOf(q) >= 0;
+            });
+            if (!filtered.length) {
+              list.innerHTML = '<div style="padding:40px;text-align:center;color:var(--ink-muted)"><i class="bi bi-person-x" style="font-size:32px"></i><p>ไม่พบรายชื่อ</p></div>';
+              return;
+            }
+            var rowHtml = '';
+            filtered.forEach(function (u) {
+              rowHtml += '<div class="tp-item" data-id="' + esc(u.id) + '" style="padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer;display:flex;align-items:center;gap:10px;transition:all .15s">'
+                + (u.photo_url ? '<img src="' + esc(u.photo_url) + '" style="width:36px;height:36px;border-radius:50%;object-fit:cover">' : '<div style="width:36px;height:36px;border-radius:50%;background:var(--brand-soft);color:var(--brand-1);display:flex;align-items:center;justify-content:center;font-weight:700">' + esc((u.full_name || '?').charAt(0)) + '</div>')
+                + '<div style="flex:1;min-width:0"><div style="font-weight:600">' + esc(u.full_name) + '</div>'
+                + '<div style="font-size:11px;color:var(--ink-muted)">' + esc(u.position || u.role) + '</div></div>'
+                + '<i class="bi bi-chevron-right" style="color:var(--ink-muted)"></i></div>';
+            });
+            list.innerHTML = rowHtml;
+            $$('.tp-item').forEach(function (el) {
+              el.addEventListener('click', function () {
+                var id = el.getAttribute('data-id');
+                var u = items.find(function (x) { return x.id === id; });
+                if (u) { if (callback) callback(u); }
+              });
+            });
+          }
+          input.addEventListener('input', function () { render(input.value); });
+          render('');
+        }
+      });
+    }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+  }
+
+  // ─── STEP 2: Income Table ─────────────────────────────────
+  function renderStep2() {
+    var v = WIZ.visit;
+    var html = '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-cash-stack"></i></div>'
+      + '<div><div class="wiz-section-title">3. จำนวนสมาชิกในครัวเรือน (รวมตัวนักเรียน)</div><div class="wiz-section-sub">กรอกข้อมูลรายได้เฉลี่ยต่อเดือนแยกตามประเภท (กรอกเฉพาะนักเรียนยากจน)</div></div></div>'
+      + '<div class="fg-2">'
+      + field('จำนวนสมาชิกในครัวเรือน', '<input class="input" type="number" data-field="household_count" value="' + esc(v.household_count||WIZ.members.length) + '" min="1">')
+      + '<div></div>'
+      + '</div>'
+      + '<div class="income-wrap"><table class="income-table" id="income-table">'
+      + '<thead><tr><th rowspan="2" style="width:36px">#</th><th rowspan="2"><span class="th-stack"><span>ความสัมพันธ์</span><span>กับนักเรียน</span></span></th><th rowspan="2" style="width:50px">อายุ</th><th rowspan="2" style="width:72px"><span class="th-stack"><span>ความพิการ</span><span>(&#10003; หรือ -)</span></span></th>'
+      + '<th colspan="5">รายได้เฉลี่ยต่อเดือน (บาท/เดือน)</th><th rowspan="2" style="width:90px">รวม</th><th rowspan="2" style="width:30px"></th></tr>'
+      + '<tr><th>ค่าจ้าง<br>เงินเดือน</th><th>เกษตร<br>(หลังหัก)</th><th>ธุรกิจ<br>(หลังหัก)</th><th>สวัสดิการ<br>รัฐ/เอกชน</th><th>แหล่งอื่น</th></tr>'
+      + '</thead><tbody id="income-body">'
+      + WIZ.members.map(memberRow).join('')
+      + '</tbody>'
+      + '<tfoot><tr class="income-summary"><td colspan="9" style="text-align:right">รวมรายได้ครัวเรือน:</td><td class="total-cell" id="income-total">0</td><td></td></tr>'
+      + '<tr class="income-summary"><td colspan="9" style="text-align:right">รายได้ครัวเรือนเฉลี่ยต่อคน:</td><td class="total-cell" id="income-avg">0</td><td></td></tr>'
+      + '</tfoot></table></div>'
+      + '<div style="margin-top:10px"><button type="button" class="btn btn-ghost btn-sm" id="add-member"><i class="bi bi-plus-circle"></i> เพิ่มสมาชิก</button></div>'
+      + '</div>';
+    return html;
+  }
+  function memberRow(m, i) {
+    return '<tr data-row="' + i + '">'
+      + '<td style="text-align:center;font-weight:700">' + (i + 1) + '</td>'
+      + '<td><input data-mf="relation" value="' + esc(m.relation||'') + '"></td>'
+      + '<td><input data-mf="age" type="number" value="' + esc(m.age||'') + '"></td>'
+      + '<td><input data-mf="disability" value="' + esc(m.disability||'') + '" placeholder="✓ หรือ –" style="text-align:center"></td>'
+      + '<td><input data-mf="income_wage" type="number" value="' + esc(m.income_wage||'') + '" min="0"></td>'
+      + '<td><input data-mf="income_agri" type="number" value="' + esc(m.income_agri||'') + '" min="0"></td>'
+      + '<td><input data-mf="income_business" type="number" value="' + esc(m.income_business||'') + '" min="0"></td>'
+      + '<td><input data-mf="income_welfare" type="number" value="' + esc(m.income_welfare||'') + '" min="0"></td>'
+      + '<td><input data-mf="income_other" type="number" value="' + esc(m.income_other||'') + '" min="0"></td>'
+      + '<td class="total-cell" data-total>' + formatNum(m.total||0) + '</td>'
+      + '<td><button type="button" data-remove-row style="background:transparent;border:0;color:#f43f5e;cursor:pointer"><i class="bi bi-x-lg"></i></button></td>'
+      + '</tr>';
+  }
+  function wireStep2() {
+    var body = $('#income-body');
+    function recalc() {
+      var total = 0;
+      $$('tr[data-row]', body).forEach(function (tr) {
+        var sum = 0;
+        ['income_wage','income_agri','income_business','income_welfare','income_other'].forEach(function (f) {
+          var el = tr.querySelector('[data-mf="' + f + '"]');
+          sum += Number(el.value) || 0;
+        });
+        tr.querySelector('[data-total]').textContent = formatNum(sum);
+        total += sum;
+      });
+      $('#income-total').textContent = formatNum(total);
+      var count = Number(document.querySelector('[data-field="household_count"]').value) || $$('tr[data-row]', body).length;
+      $('#income-avg').textContent = count > 0 ? formatNum(Math.round(total / count * 100) / 100) : 0;
+    }
+    body.addEventListener('input', recalc);
+    document.querySelector('[data-field="household_count"]').addEventListener('input', recalc);
+    body.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-remove-row]');
+      if (btn) {
+        if ($$('tr[data-row]', body).length <= 1) return;
+        btn.closest('tr').remove();
+        // Renumber
+        $$('tr[data-row]', body).forEach(function (tr, idx) {
+          tr.setAttribute('data-row', idx);
+          tr.querySelector('td:first-child').textContent = idx + 1;
+        });
+        recalc();
+      }
+    });
+    $('#add-member').addEventListener('click', function () {
+      var idx = $$('tr[data-row]', body).length;
+      body.insertAdjacentHTML('beforeend', memberRow(emptyMember(idx + 1), idx));
+      recalc();
+    });
+    recalc();
+  }
+
+  // ─── STEP 3: Household Status + Family Relations ──────────
+  function renderStep3() {
+    var v = WIZ.visit;
+    var statusDep = parseJSON(v.status_dependency, []);
+    var housingCond = parseJSON(v.housing_condition, []);
+    var helpNeeded = parseJSON(v.help_needed, []);
+    var helpReceived = parseJSON(v.help_received, []);
+    var famRel = parseJSON(v.family_relations, {});
+
+    var html = '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-house-heart-fill"></i></div>'
+      + '<div><div class="wiz-section-title">4. สถานะของครัวเรือน</div></div></div>'
+      + '<div class="field"><label>4.1 ครัวเรือนมีภาระพึ่งพิง</label>'
+      + checkGroup('status_dependency', statusDep, [
+          { v:'has_disabled', l:'มีคนพิการ' },
+          { v:'has_elderly', l:'มีผู้สูงอายุเกิน 60 ปี' },
+          { v:'single_parent', l:'เป็นพ่อ/แม่เลี้ยงเดี่ยว' },
+          { v:'unemployed_15_65', l:'มีคนอายุ 15–65 ปีว่างงาน (ไม่ใช่นักเรียน)' }
+        ]) + '</div>'
+      + '<div class="field"><label>4.2 ประเภทที่อยู่อาศัย</label>'
+      + radioRow('housing_type', v.housing_type, [
+          { v:'own', l:'บ้านของตนเอง' }, { v:'rent', l:'บ้านเช่า' }, { v:'with_others', l:'อาศัยอยู่กับผู้อื่น' }
+        ]) + '</div>'
+      + '<div class="field"><label>4.3 สภาพที่อยู่อาศัย</label>'
+      + checkGroup('housing_condition', housingCond, [
+          { v:'dilapidated', l:'สภาพบ้านชำรุดทรุดโทรม / ทำจากวัสดุพื้นบ้าน' },
+          { v:'no_toilet', l:'ไม่มีห้องส้วมในที่อยู่อาศัย' }
+        ]) + '</div>'
+      + '<div class="fg-3">'
+      + field('4.4 รถยนต์ส่วนบุคคล', radioRow('vehicle_car', v.vehicle_car, [{v:'yes',l:'มี'},{v:'no',l:'ไม่มี'}]))
+      + field('รถปิกอัพ/บรรทุก/ตู้', radioRow('vehicle_pickup', v.vehicle_pickup, [{v:'yes',l:'มี'},{v:'no',l:'ไม่มี'}]))
+      + field('รถไถ/เกี่ยวข้าว/อีแต๋น', radioRow('vehicle_tractor', v.vehicle_tractor, [{v:'yes',l:'มี'},{v:'no',l:'ไม่มี'}]))
+      + '</div>'
+      + '<div class="field"><label>4.5 เป็นเกษตรกร มีที่ดินทำกิน (รวมเช่า)</label>'
+      + checkGroup('farmer_land_arr', [v.farmer_land].filter(Boolean), [
+          { v:'under_1_rai', l:'ไม่เกิน 1 ไร่' },
+          { v:'no_land', l:'ไม่มีที่ดินเป็นของตนเอง' }
+        ], 'farmer_land') + '</div>'
+      + '</div>';
+
+    html += '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-heart-fill"></i></div>'
+      + '<div><div class="wiz-section-title">5. ความสัมพันธ์ในครอบครัว</div></div></div>'
+      + field('5.1 สมาชิกในครอบครัวมีเวลาอยู่ร่วมกันกี่ชั่วโมงต่อวัน', '<input class="input" type="number" data-field="family_hours_together" value="' + esc(v.family_hours_together||'') + '" min="0" max="24" style="max-width:140px"> <span style="margin-left:6px">ชั่วโมง/วัน</span>')
+      + '<div class="field"><label>5.2 ความสัมพันธ์ระหว่างนักเรียนกับสมาชิกในครอบครัว</label>'
+      + '<table class="data-table" style="font-size:12px"><thead><tr><th>สมาชิก</th><th>สนิทสนม</th><th>เฉยๆ</th><th>ห่างเหิน</th><th>ขัดแย้ง</th><th>ไม่มี</th></tr></thead><tbody>'
+      + ['father','mother','brother','sister','grandparent','relative','other'].map(function (k) {
+          var labels = { father:'บิดา', mother:'มารดา', brother:'พี่ชาย/น้องชาย', sister:'พี่สาว/น้องสาว', grandparent:'ปู่/ย่า/ตา/ยาย', relative:'ญาติ', other:'อื่นๆ' };
+          var cur = famRel[k] || '';
+          return '<tr><td><strong>' + labels[k] + '</strong></td>'
+            + ['close','normal','distant','conflict','none'].map(function (val) {
+              return '<td style="text-align:center"><input type="radio" name="famrel_' + k + '" value="' + val + '"' + (cur === val ? ' checked' : '') + '></td>';
+            }).join('') + '</tr>';
+        }).join('') + '</tbody></table></div>'
+      + '<div class="field"><label>5.3 กรณีผู้ปกครองไม่อยู่บ้าน ฝากเด็กกับใคร</label>'
+      + radioRow('guardian_absent_with', v.guardian_absent_with, [
+          { v:'relative', l:'ญาติ' }, { v:'neighbor', l:'เพื่อนบ้าน' },
+          { v:'alone', l:'อยู่บ้านด้วยตนเอง' }, { v:'other', l:'อื่นๆ' }
+        ]) + '<input class="input" data-field="guardian_absent_other" value="' + esc(v.guardian_absent_other||'') + '" placeholder="ระบุอื่นๆ" style="margin-top:6px;max-width:300px"></div>'
+      + '<div class="fg-2">'
+      + field('5.5 นักเรียนได้รับค่าใช้จ่ายจาก', '<input class="input" data-field="student_income_from" value="' + esc(v.student_income_from||'') + '">')
+      + field('นักเรียนทำงานหารายได้ (อาชีพ)', '<input class="input" data-field="student_work_occupation" value="' + esc(v.student_work_occupation||'') + '">')
+      + '</div>'
+      + '<div class="fg-2">'
+      + field('รายได้วันละ (บาท)', '<input class="input" type="number" data-field="student_daily_income" value="' + esc(v.student_daily_income||'') + '">')
+      + field('นักเรียนได้เงินมาโรงเรียนวันละ (บาท)', '<input class="input" type="number" data-field="student_school_allowance" value="' + esc(v.student_school_allowance||'') + '">')
+      + '</div>'
+      + '<div class="field"><label>5.6 สิ่งที่ผู้ปกครองต้องการให้โรงเรียนช่วยเหลือ</label>'
+      + checkGroup('help_needed', helpNeeded, [
+          { v:'study', l:'ด้านการเรียน' }, { v:'behavior', l:'ด้านพฤติกรรม' },
+          { v:'economy', l:'ด้านเศรษฐกิจ (ขอรับทุน)' }, { v:'other', l:'อื่นๆ' }
+        ]) + '<input class="input" data-field="help_needed_other" value="' + esc(v.help_needed_other||'') + '" placeholder="ระบุอื่นๆ" style="margin-top:6px;max-width:400px"></div>'
+      + '<div class="field"><label>5.7 ความช่วยเหลือที่ครอบครัวเคยได้รับ</label>'
+      + checkGroup('help_received', helpReceived, [
+          { v:'elderly', l:'เบี้ยผู้สูงอายุ' }, { v:'disabled', l:'เบี้ยพิการ' }, { v:'other', l:'อื่นๆ' }
+        ]) + '<input class="input" data-field="help_received_other" value="' + esc(v.help_received_other||'') + '" placeholder="ระบุอื่นๆ" style="margin-top:6px;max-width:400px"></div>'
+      + field('5.8 ข้อห่วงใยของผู้ปกครองที่มีต่อนักเรียน', '<textarea class="textarea" data-field="guardian_concerns">' + esc(v.guardian_concerns||'') + '</textarea>')
+      + '</div>';
+    return html;
+  }
+  function wireStep3() {
+    wireCheckCards();
+  }
+
+  // ─── STEP 4: Behaviors & Risks ────────────────────────────
+  function renderStep4() {
+    var v = WIZ.visit;
+    var health = parseJSON(v.health, []);
+    var safety = parseJSON(v.safety, []);
+    var resp = parseJSON(v.responsibilities, []);
+    var hobbies = parseJSON(v.hobbies, []);
+    var subs = parseJSON(v.substance_behavior, []);
+    var viol = parseJSON(v.violence_behavior, []);
+    var sex = parseJSON(v.sex_behavior, []);
+    var game = parseJSON(v.game_addiction, []);
+    var elec = parseJSON(v.electronics_use, []);
+
+    var html = '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-heart-pulse-fill"></i></div>'
+      + '<div><div class="wiz-section-title">6. พฤติกรรมและความเสี่ยง</div></div></div>'
+      + '<div class="field"><label>6.1 สุขภาพ</label>'
+      + checkGroup('health', health, [
+          {v:'weak',l:'ร่างกายไม่แข็งแรง'},{v:'chronic',l:'มีโรคประจำตัวหรือเจ็บป่วยบ่อย'},
+          {v:'malnutrition',l:'มีภาวะทุพโภชนาการ'},{v:'serious',l:'ป่วยเป็นโรคร้ายแรง/เรื้อรัง'},
+          {v:'low_fitness',l:'สมรรถภาพทางร่างกายต่ำ'}
+        ]) + '</div>'
+      + '<div class="field"><label>6.2 สวัสดิการหรือความปลอดภัย</label>'
+      + checkGroup('safety', safety, [
+          {v:'parents_separated',l:'พ่อแม่แยกทาง/แต่งงานใหม่'},
+          {v:'community_risk',l:'พักอยู่ในชุมชนแออัด/ใกล้แหล่งมั่วสุม'},
+          {v:'family_sick',l:'มีบุคคลในครอบครัวเจ็บป่วยร้ายแรง/เรื้อรัง/ติดต่อ'},
+          {v:'family_drugs',l:'บุคคลในครอบครัวติดสารเสพติด'},
+          {v:'family_gamble',l:'บุคคลในครอบครัวเล่นการพนัน'},
+          {v:'family_conflict',l:'มีความขัดแย้ง/ทะเลาะในครอบครัว'},
+          {v:'no_caretaker',l:'ไม่มีผู้ดูแล'},
+          {v:'family_violence',l:'มีความขัดแย้งและใช้ความรุนแรงในครอบครัว'},
+          {v:'abused',l:'ถูกทารุณ/ทำร้ายจากบุคคลในครอบครัว/เพื่อนบ้าน'},
+          {v:'sexual_abuse',l:'ถูกล่วงละเมิดทางเพศ'},
+          {v:'gambling',l:'เล่นการพนัน'}
+        ]) + '</div>'
+      + '<div class="fg-3">'
+      + field('6.3 ระยะทางบ้าน-โรงเรียน (กม. ไป/กลับ)', '<input class="input" type="number" step="0.1" data-field="distance_km" value="' + esc(v.distance_km||'') + '">')
+      + field('เวลาเดินทาง (ชม.)', '<input class="input" type="number" data-field="travel_time_hr" value="' + esc(v.travel_time_hr||'') + '">')
+      + field('เวลาเดินทาง (นาที)', '<input class="input" type="number" data-field="travel_time_min" value="' + esc(v.travel_time_min||'') + '">')
+      + '</div>'
+      + '<div class="field"><label>การเดินทางของนักเรียนไปโรงเรียน</label>'
+      + radioRow('travel_mode', v.travel_mode, [
+          {v:'parent',l:'ผู้ปกครองส่ง'},{v:'bus',l:'รถโดยสารประจำทาง'},
+          {v:'motorcycle',l:'รถจักรยานยนต์'},{v:'school_bus',l:'รถโรงเรียน'},
+          {v:'car',l:'รถยนต์'},{v:'bicycle',l:'รถจักรยาน'},
+          {v:'walk',l:'เดิน'},{v:'other',l:'อื่นๆ'}
+        ]) + '<input class="input" data-field="travel_other" value="' + esc(v.travel_other||'') + '" placeholder="ระบุอื่นๆ" style="margin-top:6px;max-width:300px"></div>'
+      + '<div class="field"><label>6.4 ภาระงานความรับผิดชอบของนักเรียนที่มีต่อครอบครัว</label>'
+      + checkGroup('responsibilities', resp, [
+          {v:'housework',l:'ช่วยงานบ้าน'},{v:'sell',l:'ช่วยค้าขายเล็กๆน้อยๆ'},
+          {v:'farm',l:'ช่วยงานในนาไร่'},{v:'caregiver',l:'ช่วยดูแลคนเจ็บป่วย/พิการ'},
+          {v:'work_near',l:'ทำงานแถวบ้าน'},{v:'other',l:'อื่นๆ'}
+        ]) + '<input class="input" data-field="responsibilities_other" value="' + esc(v.responsibilities_other||'') + '" placeholder="ระบุอื่นๆ" style="margin-top:6px;max-width:300px"></div>'
+      + '<div class="field"><label>6.5 กิจกรรมยามว่างหรืองานอดิเรก</label>'
+      + checkGroup('hobbies', hobbies, [
+          {v:'tv',l:'ดูทีวี/ฟังเพลง'},{v:'reading',l:'อ่านหนังสือ'},
+          {v:'racing',l:'แว้น/สก๊อย'},{v:'park',l:'ไปสวนสาธารณะ'},
+          {v:'mall',l:'ไปเที่ยวห้าง/ดูหนัง'},{v:'friends',l:'ไปหาเพื่อน/เพื่อน'},
+          {v:'game',l:'เล่นเกม คอม/มือถือ'},{v:'snooker',l:'ไปร้านสนุกเกอร์'},
+          {v:'other',l:'อื่นๆ'}
+        ]) + '<input class="input" data-field="hobbies_other" value="' + esc(v.hobbies_other||'') + '" placeholder="ระบุอื่นๆ" style="margin-top:6px;max-width:300px"></div>'
+      + '<div class="field"><label>6.6 พฤติกรรมการใช้สารเสพติด</label>'
+      + checkGroup('substance_behavior', subs, [
+          {v:'friends_drug',l:'คบเพื่อนในกลุ่มที่ใช้สารเสพติด'},
+          {v:'family_drug',l:'สมาชิกในครอบครัวข้องเกี่ยวกับยาเสพติด'},
+          {v:'env_drug',l:'อยู่ในสภาพแวดล้อมที่ใช้สารเสพติด'},
+          {v:'current_drug',l:'ปัจจุบันเกี่ยวข้องกับสารเสพติด'},
+          {v:'addict',l:'เป็นผู้ติดบุหรี่ สุรา หรือสารเสพติดอื่นๆ'}
+        ]) + '</div>'
+      + '<div class="field"><label>6.7 พฤติกรรมการใช้ความรุนแรง</label>'
+      + checkGroup('violence_behavior', viol, [
+          {v:'fight',l:'มีการทะเลาะวิวาท'},{v:'aggressive',l:'ก้าวร้าว เกเร'},
+          {v:'fight_often',l:'ทะเลาะวิวาทเป็นประจำ'},
+          {v:'hurt_others',l:'ทำร้ายร่างกายผู้อื่น'},
+          {v:'self_harm',l:'ทำร้ายร่างกายตนเอง'}
+        ]) + '</div>'
+      + '<div class="field"><label>6.8 พฤติกรรมทางเพศ</label>'
+      + checkGroup('sex_behavior', sex, [
+          {v:'sex_seller_group',l:'อยู่ในกลุ่มขายบริการ'},
+          {v:'sex_phone_long',l:'ใช้เครื่องมือสื่อสารที่เกี่ยวข้องด้านเพศนานและบ่อย'},
+          {v:'pregnant',l:'ตั้งครรภ์'},
+          {v:'sex_seller',l:'ขายบริการทางเพศ'},
+          {v:'sex_phone_obsess',l:'หมกมุ่นในการใช้เครื่องมือสื่อสารที่เกี่ยวข้องทางเพศ'},
+          {v:'sex_promiscuous',l:'มีการมั่วสุมทางเพศ'}
+        ]) + '</div>'
+      + '<div class="field"><label>6.9 การติดเกม</label>'
+      + checkGroup('game_addiction', game, [
+          {v:'over_1hr',l:'เล่นเกมเกินวันละ 1 ชม.'},
+          {v:'no_creativity',l:'ขาดจินตนาการและความคิดสร้างสรรค์'},
+          {v:'isolate',l:'เก็บตัว แยกตัวจากกลุ่มเพื่อน'},
+          {v:'overspend',l:'ใช้จ่ายเงินผิดปกติ'},
+          {v:'game_group',l:'อยู่ในกลุ่มเพื่อนเล่นเกม'},
+          {v:'game_near',l:'ร้านเกมอยู่ใกล้บ้านหรือโรงเรียน'},
+          {v:'over_2hr',l:'ใช้เวลาเล่นเกมเกิน 2 ชม.'},
+          {v:'obsess',l:'หมกมุ่น จริงจังในการเล่นเกม'},
+          {v:'steal_money',l:'ใช้เงินสิ้นเปลือง โกหก ลักขโมยเงินเพื่อเล่นเกม'},
+          {v:'other',l:'อื่นๆ'}
+        ]) + '<input class="input" data-field="game_addiction_other" value="' + esc(v.game_addiction_other||'') + '" placeholder="ระบุอื่นๆ" style="margin-top:6px;max-width:300px"></div>'
+      + '<div class="field"><label>6.10 การเข้าถึงสื่อคอมพิวเตอร์และอินเทอร์เน็ตที่บ้าน</label>'
+      + radioRow('internet_access', v.internet_access, [
+          {v:'yes',l:'สามารถเข้าถึง Internet ได้'},
+          {v:'no',l:'ไม่สามารถเข้าถึง Internet ได้'}
+        ]) + '</div>'
+      + '<div class="field"><label>6.11 การใช้เครื่องมือสื่อสารอิเล็กทรอนิกส์</label>'
+      + checkGroup('electronics_use', elec, [
+          {v:'phone_in_class',l:'เคยใช้โทรศัพท์มือถือระหว่างการเรียน'},
+          {v:'social_1hr',l:'เข้าใช้ line, Facebook, twitter, chat เกินวันละ 1 ชม.'},
+          {v:'phone_in_class_freq',l:'ใช้โทรศัพท์มือถือระหว่างเรียน 2-3 ครั้ง/วัน'},
+          {v:'social_2hr',l:'เข้าใช้ line, Facebook, twitter, chat เกินวันละ 2 ชม.'}
+        ]) + '</div>'
+      + '</div>';
+
+    html += '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-pen-fill"></i></div>'
+      + '<div><div class="wiz-section-title">ผู้ให้ข้อมูลนักเรียน</div></div></div>'
+      + '<div class="field"><label>ผู้ให้ข้อมูล</label>'
+      + radioRow('informant', v.informant, [
+          {v:'father',l:'บิดา'},{v:'mother',l:'มารดา'},{v:'brother',l:'พี่ชาย'},
+          {v:'sister',l:'พี่สาว'},{v:'aunt_y',l:'น้า'},{v:'aunt_o',l:'อา'},
+          {v:'aunt',l:'ป้า'},{v:'uncle',l:'ลุง'},{v:'gpa',l:'ปู่'},
+          {v:'gma',l:'ย่า'},{v:'mgpa',l:'ตา'},{v:'mgma',l:'ยาย'},
+          {v:'great',l:'ทวด'},{v:'stepfather',l:'พ่อเลี้ยง'},{v:'stepmother',l:'แม่เลี้ยง'}
+        ]) + '</div>'
+      + field('ชื่อผู้ปกครอง/ผู้แทน (ผู้ลงนามรับรอง)', '<input class="input" data-field="guardian_signature_name" value="' + esc(v.guardian_signature_name||(v.guardian_first_name+' '+v.guardian_last_name).trim()||'') + '">')
+      + signaturePadHtml('guardian_signature_image', v.guardian_signature_image, 'ลายเซ็นผู้ปกครอง/ผู้แทน')
+      + '</div>';
+    return html;
+  }
+  function wireStep4() {
+    wireCheckCards();
+    wireSignaturePads();
+  }
+
+  // ─── STEP 5: Photos + Review ──────────────────────────────
+  function renderStep5() {
+    var v = WIZ.visit;
+    var photoHouseType = parseJSON(v.photo_house_type, []);
+    var reportCats = parseJSON(v.student_report_categories, []);
+    var riskCats = parseJSON(v.student_risk_categories, []);
+    var html = '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-camera-fill"></i></div>'
+      + '<div><div class="wiz-section-title">ภาพถ่ายบ้านนักเรียนที่ได้รับการเยี่ยมบ้าน</div></div></div>'
+      + '<div class="field"><label>ภาพถ่ายที่แนบมาคือ</label>'
+      + checkGroup('photo_house_type', photoHouseType, [
+          {v:'with_parents',l:'บ้านที่อาศัยอยู่กับพ่อแม่ (เป็นเจ้าของ/เช่า)'},
+          {v:'with_relative',l:'บ้านของญาติ/ผู้ปกครองที่ไม่ใช่ญาติ'},
+          {v:'dormitory',l:'บ้านหรือที่พักประเภท วัด มูลนิธิ หอพัก โรงงาน อยู่กับนายจ้าง'},
+          {v:'with_school_sign',l:'ภาพนักเรียนและป้ายชื่อโรงเรียน (กรณีถ่ายภาพบ้านไม่ได้)'}
+        ]) + '</div>'
+      + '<div class="fg-2">'
+      + photoField('รูปที่ 1: ภาพถ่ายสภาพบ้านนักเรียน (มีหลังคาและฝาบ้านด้วย)', 'photo_house_outside', v.photo_house_outside)
+      + photoField('รูปที่ 2: ภาพถ่ายภายในบ้านนักเรียน', 'photo_house_inside', v.photo_house_inside)
+      + '</div>'
+      + photoField('รูปนักเรียน (สำหรับติดในเอกสาร)', 'photo_student', v.photo_student)
+      + '</div>';
+
+    html += '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-tags-fill"></i></div>'
+      + '<div><div class="wiz-section-title">ความใกล้ชิดของนักเรียนกับครอบครัว</div><div class="wiz-section-sub">เลือกได้มากกว่า 1 หมวด เพื่อใช้แสดงผลในหน้ารายงาน</div></div></div>'
+      + '<div class="field"><label>กำกับว่านักเรียนอยู่ในหมวดใด</label>'
+      + checkGroup('student_report_categories', reportCats, [
+          {v:'warm_family',l:'สภาพครอบครัวนักเรียนที่มีความอบอุ่น'},
+          {v:'broken_family',l:'สภาพครอบครัวนักเรียนที่มีความแตกแยก'},
+          {v:'distant_family',l:'สภาพครอบครัวนักเรียนที่มีความห่างเหิน'},
+          {v:'lives_with_both_parents',l:'สภาพนักเรียนอาศัยอยู่กับบิดาและมารดา'},
+          {v:'lives_with_single_parent',l:'สภาพนักเรียนอาศัยอยู่กับบิดาหรือมารดา'},
+          {v:'not_living_with_parents',l:'สภาพนักเรียนที่ไม่ได้อาศัยอยู่กับบิดาและมารดา'}
+        ]) + '</div></div>';
+
+    html += '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-exclamation-triangle-fill"></i></div>'
+      + '<div><div class="wiz-section-title">ความเสี่ยงของนักเรียน</div><div class="wiz-section-sub">เลือกได้มากกว่า 1 ความเสี่ยง เพื่อใช้แสดงผลในหน้ารายงาน</div></div></div>'
+      + '<div class="field"><label>กำกับว่านักเรียนอยู่ในความเสี่ยงแบบใด</label>'
+      + checkGroup('student_risk_categories', riskCats, [
+          {v:'economic',l:'สภาพนักเรียนที่มีความเสี่ยงด้านเศรษฐกิจ'},
+          {v:'safety',l:'สภาพนักเรียนที่มีความเสี่ยงด้านสวัสดิภาพและความปลอดภัย เช่น การเดินทาง ที่อยู่อาศัย'},
+          {v:'sexual_behavior',l:'สภาพนักเรียนที่มีความเสี่ยงด้านพฤติกรรมทางเพศ'},
+          {v:'mental_health',l:'สภาพนักเรียนที่มีความเสี่ยงด้านสุขภาพจิต'},
+          {v:'physical_health',l:'สภาพนักเรียนที่มีความเสี่ยงด้านสุขภาพ เช่น อ้วน ผอม โรคประจำตัว'},
+          {v:'violence',l:'สภาพนักเรียนที่มีความเสี่ยงด้านความรุนแรง'},
+          {v:'substance',l:'สภาพนักเรียนที่มีความเสี่ยงด้านสารเสพติด'}
+        ]) + '</div></div>';
+
+    html += '<div class="wiz-section"><div class="wiz-section-head"><div class="wiz-section-icon"><i class="bi bi-check2-circle"></i></div>'
+      + '<div><div class="wiz-section-title">ตรวจสอบและบันทึก</div></div></div>';
+
+    if (WIZ.mapping) {
+      html += '<div style="margin-bottom:14px;padding:12px;background:var(--brand-soft);border-radius:12px;border:1px solid var(--brand-2)">'
+        + '<div style="font-size:12px;font-weight:700;color:var(--brand-1);margin-bottom:8px"><i class="bi bi-person-badge-fill"></i> ครูประจำชั้นที่กำหนดไว้</div>'
+        + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+        + '<button type="button" class="btn btn-white btn-sm" data-pick-mapped="1"><i class="bi bi-person-check"></i> ' + esc(WIZ.mapping.teacher1_name) + '</button>'
+        + (WIZ.mapping.teacher2_name ? '<button type="button" class="btn btn-white btn-sm" data-pick-mapped="2"><i class="bi bi-person-check"></i> ' + esc(WIZ.mapping.teacher2_name) + '</button>' : '')
+        + '</div></div>';
+    }
+
+    html += '<div class="fg-2">'
+      + field('ผู้ลงนามรับรอง (ครู/ผอ.)', '<input class="input" data-field="teacher_signature_name" value="' + esc(v.teacher_signature_name || (WIZ.mapping ? WIZ.mapping.teacher1_name : '') || Store.user.full_name || '') + '">')
+      + field('ตำแหน่ง', '<input class="input" data-field="teacher_position" value="' + esc(v.teacher_position || (WIZ.mapping ? 'ครูประจำชั้น' : '') || Store.user.position || '') + '">')
+      + '</div>'
+      + signaturePadHtml('teacher_signature_image', v.teacher_signature_image, 'ลายเซ็นครู/ผู้อำนวยการ')
+      + '<div class="fg-2">'
+      + field('วันที่ลงนาม', '<input class="input" type="date" data-field="date_signed" value="' + esc(v.date_signed||TH.iso(new Date())) + '">')
+      + field('สถานะ', '<select class="select" data-field="status">'
+          + ['draft','completed','approved'].map(function (k) { return '<option value="' + k + '"' + (v.status === k ? ' selected' : '') + '>' + esc(Store.boot.statuses[k]) + '</option>'; }).join('')
+          + '</select>')
+      + '</div>'
+      + '<div style="padding:14px;background:linear-gradient(135deg,#ecfdf5,#fff);border-left:4px solid #10b981;border-radius:10px;margin-top:10px">'
+      + '<strong style="color:#065f46"><i class="bi bi-info-circle-fill"></i> หมายเหตุ:</strong> '
+      + 'หลังบันทึก คุณสามารถพิมพ์เอกสารแบบฟอร์มราชการได้ทันทีจากเมนู "พิมพ์"'
+      + '</div>'
+      + '</div>';
+    return html;
+  }
+  function photoField(label, name, url) {
+    return '<div class="field"><label>' + label + '</label>'
+      + '<div class="photo-upload' + (url ? ' has-image' : '') + '" data-photo-name="' + name + '">'
+      + (url ? '<img src="' + esc(url) + '"><button type="button" class="photo-remove" data-photo-remove><i class="bi bi-x"></i></button>'
+            : '<i class="bi bi-cloud-upload ph-icon"></i><div class="ph-text">คลิกเพื่อเลือกภาพ หรือถ่ายภาพ</div>')
+      + '<input type="file" accept="image/*" capture="environment" data-photo-input>'
+      + '</div></div>';
+  }
+  function wireStep5() {
+    wireCheckCards();
+    wireSignaturePads();
+
+    $$('[data-pick-mapped]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var num = btn.getAttribute('data-pick-mapped');
+        var name = num === '1' ? WIZ.mapping.teacher1_name : WIZ.mapping.teacher2_name;
+        if (name) {
+          var nameEl = document.querySelector('[data-field="teacher_signature_name"]');
+          var posEl = document.querySelector('[data-field="teacher_position"]');
+          if (nameEl) nameEl.value = name;
+          if (posEl) posEl.value = 'ครูประจำชั้น';
+          toast('เลือกครูประจำชั้นคนที่ ' + num, 'success', 1000);
+        }
+      });
+    });
+
+    $$('.photo-upload').forEach(function (pu) {
+      var input = pu.querySelector('[data-photo-input]');
+      var name = pu.getAttribute('data-photo-name');
+      pu.addEventListener('click', function (e) {
+        if (e.target.closest('[data-photo-remove]')) {
+          WIZ.visit[name] = '';
+          pu.classList.remove('has-image');
+          pu.innerHTML = '<i class="bi bi-cloud-upload ph-icon"></i><div class="ph-text">คลิกเพื่อเลือกภาพ</div><input type="file" accept="image/*" capture="environment" data-photo-input>';
+          wireStep5();
+          return;
+        }
+        if (!e.target.closest('[data-photo-input]')) input.click();
+      });
+      input.addEventListener('change', function () {
+        var file = input.files[0]; if (!file) return;
+        Spinner.show('กำลังอัปโหลด...', { stages: ['อ่านไฟล์','อัปโหลด','บันทึก'] });
+        window.uploadFile(file, 'visits').then(function (r) {
+          Spinner.hide();
+          WIZ.visit[name] = r.url;
+          pu.classList.add('has-image');
+          pu.innerHTML = '<img src="' + esc(r.url) + '"><button type="button" class="photo-remove" data-photo-remove><i class="bi bi-x"></i></button><input type="file" accept="image/*" capture="environment" data-photo-input>';
+          wireStep5();
+          toast('อัปโหลดเรียบร้อย', 'success');
+        }).catch(function (e) { Spinner.hide(); alertError('อัปโหลดไม่สำเร็จ', e.message); });
+      });
+    });
+  }
+
+  // ─── Signature Pad Component ──────────────────────────────
+  function signaturePadHtml(name, url, label) {
+    var hasSig = !!url;
+    return '<div class="field"><label><i class="bi bi-pen-fill"></i> ' + esc(label) + '</label>'
+      + '<div class="sig-pad" data-sig-name="' + name + '">'
+      + '<div class="sig-stage' + (hasSig ? ' has-sig' : '') + '">'
+      +   '<canvas class="sig-canvas" width="600" height="180"></canvas>'
+      +   '<div class="sig-placeholder"><i class="bi bi-pen"></i><span>เซ็นที่นี่ด้วยเมาส์/นิ้ว หรืออัปโหลดรูปลายเซ็น</span></div>'
+      +   '<div class="sig-preview"' + (hasSig ? '' : ' hidden') + '>' + (hasSig ? '<img src="' + esc(url) + '" alt="ลายเซ็น">' : '') + '</div>'
+      + '</div>'
+      + '<div class="sig-actions">'
+      +   '<button type="button" class="btn btn-ghost btn-sm" data-sig-clear><i class="bi bi-arrow-counterclockwise"></i> ล้าง</button>'
+      +   '<label class="btn btn-ghost btn-sm" style="margin-bottom:0;cursor:pointer"><i class="bi bi-upload"></i> อัปโหลดไฟล์<input type="file" accept="image/*" hidden data-sig-file></label>'
+      +   '<button type="button" class="btn btn-primary btn-sm" data-sig-save' + (hasSig ? ' hidden' : '') + '><i class="bi bi-check-lg"></i> ใช้ลายเซ็นนี้</button>'
+      +   '<button type="button" class="btn btn-warning btn-sm" data-sig-redo' + (hasSig ? '' : ' hidden') + '><i class="bi bi-pencil"></i> เซ็นใหม่</button>'
+      + '</div></div></div>';
+  }
+
+  function wireSignaturePads() {
+    $$('.sig-pad').forEach(function (pad) {
+      if (pad.__sigWired) return;
+      pad.__sigWired = true;
+      var name = pad.getAttribute('data-sig-name');
+      var canvas = pad.querySelector('.sig-canvas');
+      var stage = pad.querySelector('.sig-stage');
+      var placeholder = pad.querySelector('.sig-placeholder');
+      var preview = pad.querySelector('.sig-preview');
+      var btnClear = pad.querySelector('[data-sig-clear]');
+      var btnSave = pad.querySelector('[data-sig-save]');
+      var btnRedo = pad.querySelector('[data-sig-redo]');
+      var fileInput = pad.querySelector('[data-sig-file]');
+      if (!canvas) return;
+
+      var ctx = canvas.getContext('2d');
+      ctx.strokeStyle = '#1e293b';
+      ctx.lineWidth = 2.4;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      var isDrawing = false, lastX = 0, lastY = 0, hasStrokes = false;
+
+      function getPos(e) {
+        var rect = canvas.getBoundingClientRect();
+        var sx = canvas.width / rect.width;
+        var sy = canvas.height / rect.height;
+        var cx = e.touches ? e.touches[0].clientX : e.clientX;
+        var cy = e.touches ? e.touches[0].clientY : e.clientY;
+        return { x: (cx - rect.left) * sx, y: (cy - rect.top) * sy };
+      }
+      function start(e) {
+        if (preview && !preview.hidden) return;
+        e.preventDefault();
+        isDrawing = true; hasStrokes = true;
+        if (placeholder) placeholder.style.opacity = '0';
+        var p = getPos(e); lastX = p.x; lastY = p.y;
+      }
+      function draw(e) {
+        if (!isDrawing) return;
+        e.preventDefault();
+        var p = getPos(e);
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        lastX = p.x; lastY = p.y;
+      }
+      function stop() { isDrawing = false; }
+
+      canvas.addEventListener('mousedown', start);
+      canvas.addEventListener('mousemove', draw);
+      canvas.addEventListener('mouseup', stop);
+      canvas.addEventListener('mouseleave', stop);
+      canvas.addEventListener('touchstart', start, { passive: false });
+      canvas.addEventListener('touchmove', draw, { passive: false });
+      canvas.addEventListener('touchend', stop);
+
+      function clearCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        hasStrokes = false;
+        if (placeholder) placeholder.style.opacity = '';
+      }
+      function showPreview(url) {
+        preview.innerHTML = '<img src="' + esc(url) + '" alt="ลายเซ็น">';
+        preview.hidden = false;
+        if (placeholder) placeholder.style.display = 'none';
+        if (btnSave) btnSave.hidden = true;
+        if (btnRedo) btnRedo.hidden = false;
+        stage.classList.add('has-sig');
+        WIZ.visit[name] = url;
+      }
+      function showCanvas() {
+        preview.hidden = true;
+        preview.innerHTML = '';
+        if (placeholder) placeholder.style.display = '';
+        clearCanvas();
+        if (btnSave) btnSave.hidden = false;
+        if (btnRedo) btnRedo.hidden = true;
+        stage.classList.remove('has-sig');
+        WIZ.visit[name] = '';
+      }
+
+      if (btnClear) btnClear.addEventListener('click', clearCanvas);
+      if (btnRedo) btnRedo.addEventListener('click', showCanvas);
+      if (btnSave) btnSave.addEventListener('click', function () {
+        if (!hasStrokes) {
+          alertWarning('ยังไม่มีลายเซ็น', 'กรุณาเซ็นในกรอบก่อน หรือเลือก "อัปโหลดไฟล์"');
+          return;
+        }
+        var dataUrl = canvas.toDataURL('image/png');
+        Spinner.show('กำลังบันทึกลายเซ็น...', { stages: ['แปลงเป็นรูปภาพ','อัปโหลด Drive','บันทึก URL'] });
+        call('file.upload', { name: 'signature_' + name + '_' + Date.now() + '.png', data: dataUrl, subfolder: 'signatures' }, 60000)
+          .then(function (r) { Spinner.hide(); showPreview(r.url); toast('บันทึกลายเซ็นเรียบร้อย', 'success', 1500); })
+          .catch(function (e) { Spinner.hide(); alertError('อัปโหลดไม่สำเร็จ', e.message); });
+      });
+      if (fileInput) fileInput.addEventListener('change', function () {
+        var file = fileInput.files[0]; if (!file) return;
+        Spinner.show('กำลังอัปโหลด...', { stages: ['อ่านไฟล์','อัปโหลด','บันทึก'] });
+        window.uploadFile(file, 'signatures').then(function (r) {
+          Spinner.hide(); showPreview(r.url); toast('อัปโหลดเรียบร้อย', 'success', 1500);
+        }).catch(function (e) { Spinner.hide(); alertError('อัปโหลดไม่สำเร็จ', e.message); });
+      });
+    });
+  }
+
+  // ─── Capture step data ────────────────────────────────────
+  function captureStep() {
+    $$('[data-field]').forEach(function (el) {
+      var name = el.getAttribute('data-field');
+      var val;
+      if (el.type === 'checkbox') val = el.checked;
+      else if (el.type === 'radio') { if (el.checked) WIZ.visit[name] = el.value; return; }
+      else val = el.value;
+      WIZ.visit[name] = val;
+    });
+    // Capture radio groups by name
+    $$('input[type="radio"]').forEach(function (el) {
+      if (el.checked && !el.hasAttribute('data-field') && el.name && !/^famrel_/.test(el.name)) {
+        WIZ.visit[el.name] = el.value;
+      }
+    });
+    // Family relations matrix
+    var famRel = {};
+    ['father','mother','brother','sister','grandparent','relative','other'].forEach(function (k) {
+      var r = document.querySelector('input[name="famrel_' + k + '"]:checked');
+      if (r) famRel[k] = r.value;
+    });
+    if (Object.keys(famRel).length) WIZ.visit.family_relations = famRel;
+    // Capture checkbox groups
+    var checkboxGroups = {};
+    $$('[data-checkgroup]').forEach(function (el) {
+      var g = el.getAttribute('data-checkgroup');
+      if (!checkboxGroups[g]) checkboxGroups[g] = [];
+      if (el.checked) checkboxGroups[g].push(el.value);
+    });
+    Object.keys(checkboxGroups).forEach(function (g) { WIZ.visit[g] = checkboxGroups[g]; });
+    // Special: farmer_land_arr → keep first as primary value
+    if (WIZ.visit.farmer_land_arr) {
+      WIZ.visit.farmer_land = (WIZ.visit.farmer_land_arr[0] || '');
+      delete WIZ.visit.farmer_land_arr;
+    }
+    // Members
+    if (WIZ.step === 2) {
+      var members = [];
+      $$('#income-body tr[data-row]').forEach(function (tr, idx) {
+        var m = { seq: idx + 1 };
+        $$('[data-mf]', tr).forEach(function (inp) { m[inp.getAttribute('data-mf')] = inp.value; });
+        members.push(m);
+      });
+      WIZ.members = members;
+    }
+  }
+
+  function saveVisit() {
+    if (!WIZ.visit.student_id) { alertError('ข้อมูลไม่ครบ', 'กรุณาเลือกนักเรียน'); WIZ.step = 1; renderWizard(); return; }
+    // Double-submit guard
+    if (WIZ.saving) return;
+    WIZ.saving = true;
+    Spinner.show('กำลังบันทึก...', { stages: ['ตรวจสอบข้อมูล','ตรวจสอบบันทึกซ้ำ','บันทึกข้อมูลหลัก','บันทึกสมาชิกครัวเรือน','เสร็จสิ้น'] });
+    var payload = { visit: WIZ.visit, members: WIZ.members };
+    if (WIZ.forceCreate) payload.force = true;
+    call('visit.save', payload, 60000).then(function (d) {
+      Spinner.hide();
+      WIZ.saving = false;
+      var visitId = d.visit.id;
+      WIZ = null;
+
+      Swal.fire({
+        icon: 'success', title: 'บันทึกสำเร็จ!',
+        html: '<div style="font-size:22px;font-weight:800;color:#10b981;margin:8px 0">' + esc(d.visit.visit_code) + '</div>'
+          + '<div>กำลังส่งไปหน้าพิมพ์เอกสาร...</div>',
+        timer: 1500,
+        showConfirmButton: false,
+        allowOutsideClick: false
+      }).then(function () {
+        location.hash = '#/visits/print/' + visitId;
+      });
+    })
+.catch(function (e) {
+      Spinner.hide();
+      WIZ.saving = false;
+      // Handle duplicate error specifically
+      if (e.message && e.message.indexOf('DUPLICATE:') === 0) {
+        var msg = e.message.substring(10);
+        Swal.fire({
+          icon: 'warning',
+          title: 'พบบันทึกซ้ำ',
+          html: '<div>' + esc(msg) + '</div><div style="margin-top:10px;font-size:13px;color:var(--ink-muted)">กรุณากลับไปที่ขั้นที่ 1 เพื่อเลือกนักเรียนคนอื่น หรือดู/แก้ไขบันทึกที่มีอยู่</div>',
+          showCancelButton: true,
+          confirmButtonText: 'กลับไปรายการ',
+          cancelButtonText: 'แก้ไขฟอร์มต่อ',
+          reverseButtons: true
+        }).then(function (r) {
+          if (r.isConfirmed) location.hash = '#/visits';
+        });
+        return;
+      }
+      alertError('บันทึกไม่สำเร็จ', e.message);
+    });
+  }
+
+  // ─── Visit View (read-only) ───────────────────────────────
+  function renderVisitView(d) {
+    if (!$('#page')) return;
+    var v = d.visit, s = d.student || {}, t = d.teacher || {};
+    var html = pageHero('การเยี่ยมบ้าน · ' + (v.visit_code||''), studentName(s) + ' · ' + TH.dateLong(v.visit_date), 'bi-house-heart-fill');
+    html += '<div class="card" style="margin-bottom:14px;display:flex;gap:10px;flex-wrap:wrap">'
+      + '<a class="btn btn-primary" href="#/visits/print/' + esc(v.id) + '"><i class="bi bi-printer-fill"></i> พิมพ์เอกสาร</a>'
+      + (hasCap('visit.edit') || String(v.teacher_id) === String(Store.user.id) ? '<a class="btn btn-ghost" href="#/visits/edit/' + esc(v.id) + '"><i class="bi bi-pencil"></i> แก้ไข</a>' : '')
+      + '<a class="btn btn-ghost" href="#/visits"><i class="bi bi-arrow-left"></i> กลับ</a>'
+      + '<div style="margin-left:auto">' + statusBadge(v.status) + '</div>'
+      + '</div>';
+    html += '<div class="card"><h3 class="card-title"><i class="bi bi-person-fill"></i> ข้อมูลนักเรียน</h3>'
+      + kv('ชื่อ-สกุล', studentName(s))
+      + kv('รหัสนักเรียน', s.student_code)
+      + kv('ชั้น/ห้อง', (s.class_level||'') + (s.room ? '/' + s.room : ''))
+      + kv('เลขบัตรประชาชน', s.citizen_id)
+      + '</div>';
+    html += '<div class="card"><h3 class="card-title"><i class="bi bi-people-fill"></i> ผู้ปกครอง</h3>'
+      + kv('ชื่อ-สกุล', (v.guardian_first_name||'') + ' ' + (v.guardian_last_name||''))
+      + kv('ความสัมพันธ์', v.guardian_relation)
+      + kv('อาชีพ', v.guardian_occupation)
+      + kv('โทรศัพท์', v.guardian_phone)
+      + '</div>';
+    html += '<div class="card"><h3 class="card-title"><i class="bi bi-cash-stack"></i> สรุปรายได้ครัวเรือน</h3>'
+      + kv('จำนวนสมาชิก', formatNum(v.household_count) + ' คน')
+      + kv('รายได้รวม', formatNum(v.total_income) + ' บาท/เดือน')
+      + kv('รายได้เฉลี่ยต่อคน', formatNum(v.avg_income_per_person) + ' บาท/เดือน/คน')
+      + '</div>';
+    $('#page').innerHTML = html;
+  }
+  function kv(k, val) {
+    return '<div style="display:flex;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px">'
+      + '<div style="width:200px;color:var(--ink-muted)">' + esc(k) + '</div>'
+      + '<div style="flex:1;font-weight:500">' + esc(val||'-') + '</div></div>';
+  }
+
+  // ─── Visit Print ──────────────────────────────────────────
+  Routes['#/visits/print'] = function (hash) {
+    var parts = hash.split('?');
+    var id = parts[0].split('/')[3];
+    var isAuto = false;
+
+    Spinner.show('กำลังเตรียมเอกสาร...');
+    call('visit.print', { id: id }).then(function (d) {
+      Spinner.hide();
+      renderPrintForm(d);
+      
+      if (isAuto) savePrintPdfToDrive(d, id);
+    }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+  };
+
+  function savePrintPdfToDrive(d, id) {
+    var fileName = 'รายงานการเยี่ยมบ้าน_' + studentName(d.student) + '_' + (d.visit.visit_code || Date.now()) + '.pdf';
+    Spinner.show('กำลังสร้างไฟล์ PDF คุณภาพสูง...', { stages: ['เรนเดอร์เอกสาร', 'โหลดฟอนต์และรูปภาพ', 'บันทึกลง Drive'] });
+
+    var element = $('.print-doc');
+    if (!element) { Spinner.hide(); alertError('บันทึก PDF ไม่สำเร็จ', 'ไม่พบเอกสารสำหรับสร้าง PDF'); return; }
+    var root = document.documentElement;
+
+    function cleanupCaptureMode() {
+      root.classList.remove('pdf-capture-mode');
+      element.classList.remove('is-capturing');
+    }
+
+    Promise.all([
+      (document.fonts ? document.fonts.ready : Promise.resolve()),
+      new Promise(function(resolve) { setTimeout(resolve, 2500); })
+    ]).then(function () {
+      root.classList.add('pdf-capture-mode');
+      element.classList.add('is-capturing');
+
+      var opt = {
+        margin: 0,
+        filename: fileName,
+        image: { type: 'jpeg', quality: 1.0 },
+        html2canvas: {
+          scale: 2,
+          useCORS: true,
+          letterRendering: true,
+          scrollX: 0,
+          scrollY: 0
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+        pagebreak: { mode: ['css'] }
+      };
+
+      return html2pdf().set(opt).from(element).outputPdf('datauristring').then(function (pdfBase64) {
+        call('file.upload', {
+          name: fileName,
+          data: pdfBase64,
+          subfolder: d.visit.academic_year || 'PDF_Reports',
+          overwrite: true
+        }).then(function () {
+          cleanupCaptureMode();
+          Spinner.hide();
+          Swal.fire({
+            icon: 'success',
+            title: 'บันทึก PDF เรียบร้อย',
+            text: 'ระบบสร้างไฟล์ PDF คุณภาพสูงและบันทึกลง Drive แล้ว',
+            timer: 2000,
+            showConfirmButton: false
+          });
+        }).catch(function (err) {
+          cleanupCaptureMode();
+          Spinner.hide();
+          alertError('บันทึก PDF ไม่สำเร็จ', err.message);
+        });
+      });
+    }).catch(function (err) {
+      cleanupCaptureMode();
+      Spinner.hide();
+      alertError('บันทึก PDF ไม่สำเร็จ', err.message);
+    });
+  }
+
+  function wireVisitsBatchActions(items) {
+    var idsOnPage = (items || [])
+      .map(function (v) { return String(v.id || ''); })
+      .filter(function (id) { return !!id; });
+    var batchBtn = $('#vis-drive-batch');
+    var allBox = $('#vis-batch-all');
+
+    function selectedCount() { return Object.keys(VIS_BATCH_SELECTED).length; }
+
+    function syncBatchUi() {
+      var count = selectedCount();
+      var countEl = $('#vis-batch-count');
+      if (countEl) countEl.textContent = String(count);
+      if (batchBtn) batchBtn.disabled = count === 0;
+      if (!allBox) return;
+
+      var selectedOnPage = 0;
+      idsOnPage.forEach(function (id) { if (VIS_BATCH_SELECTED[id]) selectedOnPage++; });
+      allBox.checked = idsOnPage.length > 0 && selectedOnPage === idsOnPage.length;
+      allBox.indeterminate = selectedOnPage > 0 && selectedOnPage < idsOnPage.length;
+    }
+
+    $$('[data-vis-batch-id]').forEach(function (cb) {
+      cb.addEventListener('change', function () {
+        var id = cb.getAttribute('data-vis-batch-id');
+        if (cb.checked) VIS_BATCH_SELECTED[id] = true;
+        else delete VIS_BATCH_SELECTED[id];
+        syncBatchUi();
+      });
+    });
+
+    if (allBox) {
+      allBox.addEventListener('change', function () {
+        idsOnPage.forEach(function (id) {
+          if (allBox.checked) VIS_BATCH_SELECTED[id] = true;
+          else delete VIS_BATCH_SELECTED[id];
+        });
+        $$('[data-vis-batch-id]').forEach(function (cb) { cb.checked = allBox.checked; });
+        syncBatchUi();
       });
     }
 
-    function renderInlineResult(doc) {
-      var result = $('#doc-inline-result');
-      if (!result) return;
-      result.style.display = 'block';
-      result.innerHTML = successBox(doc);
+    if (batchBtn) {
+      batchBtn.addEventListener('click', function () {
+        var ids = Object.keys(VIS_BATCH_SELECTED);
+        if (!ids.length) {
+          alertError('ยังไม่ได้เลือกรายการ', 'กรุณาเลือกอย่างน้อย 1 รายการเพื่อบันทึกลง Drive');
+          return;
+        }
+        confirmModal({
+          title: 'บันทึกลง Drive แบบ Batch?',
+          message: 'ต้องการสร้าง PDF และบันทึกลง Drive จำนวน ' + formatNum(ids.length) + ' รายการ',
+          danger: false
+        }).then(function (ok) {
+          if (!ok) return;
+          saveVisitsToDriveBatch(ids).then(function (result) {
+            if (result.failed.length) {
+              var detail = result.failed.slice(0, 6).map(function (f) {
+                return '- ' + f.id + ' - ' + f.error;
+                /*
+                return '• ' + f.id + ' - ' + f.error;
+                */
+              }).join('\n');
+              alertError('บันทึกบางรายการไม่สำเร็จ', 'สำเร็จ ' + formatNum(result.success) + ' / ' + formatNum(result.total) + '\n\n' + detail);
+            } else {
+              alertSuccess('สำเร็จ', 'บันทึกลง Drive สำเร็จ ' + formatNum(result.success) + ' รายการ');
+            }
+            VIS_BATCH_SELECTED = {};
+            Routes['#/visits']();
+          });
+        });
+      });
     }
 
-    function renderModalResult(doc) {
-      var result = $('#doc-modal-result');
-      if (!result) return;
-      result.style.display = 'block';
-      result.innerHTML = successBox(doc);
+    syncBatchUi();
+  }
+
+  function saveVisitsToDriveBatch(ids) {
+    var list = (ids || []).map(function (id) { return String(id || ''); }).filter(function (id) { return !!id; });
+    var result = { total: list.length, success: 0, failed: [] };
+    if (!list.length) return Promise.resolve(result);
+
+    var chain = Promise.resolve();
+    list.forEach(function (id, index) {
+      chain = chain.then(function () {
+        Spinner.show('กำลังบันทึกลง Drive แบบ Batch (' + (index + 1) + '/' + list.length + ')...');
+        return saveVisitPdfByIdToDrive(id).then(function () {
+          result.success++;
+        }).catch(function (err) {
+          result.failed.push({
+            id: id,
+            error: (err && err.message) ? err.message : String(err || 'Unknown error')
+          });
+        });
+      });
+    });
+
+    return chain.then(function () {
+      Spinner.hide();
+      return result;
+    }).catch(function (err) {
+      Spinner.hide();
+      result.failed.push({ id: '-', error: (err && err.message) ? err.message : String(err || 'Unknown error') });
+      return result;
+    });
+  }
+
+  function saveVisitPdfByIdToDrive(id) {
+    return call('visit.print', { id: id }).then(function (d) {
+      return saveVisitPdfFromDataToDrive(d, { overwrite: true });
+    });
+  }
+
+  function saveVisitPdfFromDataToDrive(d, opts) {
+    opts = opts || {};
+    if (typeof window.buildPrintForm !== 'function') {
+      return Promise.reject(new Error('โหลด print template ไม่ได้'));
+    }
+
+    var fileName = 'รายงานการเยี่ยมบ้าน_' + studentName(d.student) + '_' + (d.visit.visit_code || Date.now()) + '.pdf';
+    var host = document.createElement('div');
+    host.style.position = 'fixed';
+    host.style.left = '-10000px';
+    host.style.top = '0';
+    host.style.width = '210mm';
+    host.style.background = '#fff';
+    host.style.pointerEvents = 'none';
+    host.style.zIndex = '9999';
+    host.innerHTML = window.buildPrintForm(d);
+
+    var element = host.querySelector('.print-doc');
+    if (!element) return Promise.reject(new Error('ไม่พบเอกสารสำหรับสร้าง PDF'));
+    var tb = element.querySelector('.print-toolbar');
+    if (tb && tb.parentNode) tb.parentNode.removeChild(tb);
+    element.classList.add('is-capturing');
+    document.body.appendChild(host);
+
+    var opt = {
+      margin: 0,
+      filename: fileName,
+      image: { type: 'jpeg', quality: 1.0 },
+      html2canvas: { scale: 2, useCORS: true, letterRendering: true, scrollX: 0, scrollY: 0 },
+      jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+      pagebreak: { mode: ['css'] }
+    };
+
+    function cleanup() {
+      if (host && host.parentNode) host.parentNode.removeChild(host);
+    }
+
+    return Promise.all([
+      (document.fonts ? document.fonts.ready : Promise.resolve()),
+      new Promise(function (resolve) { setTimeout(resolve, 2500); })
+    ]).then(function () {
+      return html2pdf().set(opt).from(element).outputPdf('datauristring');
+    }).then(function (pdfBase64) {
+      cleanup();
+      return call('file.upload', {
+        name: fileName,
+        data: pdfBase64,
+        subfolder: d.visit.academic_year || 'PDF_Reports',
+        overwrite: opts.overwrite !== false
+      });
+    }).catch(function (err) {
+      cleanup();
+      throw err;
+    });
+  }
+
+  function renderPrintForm(d) {
+    if (typeof window.buildPrintForm === 'function') {
+      $('#page').innerHTML = window.buildPrintForm(d);
+      var pb = $('#pr-do-print');
+      if (pb) pb.addEventListener('click', function () { window.print(); });
+      var db = $('#pr-save-drive');
+      if (db) db.addEventListener('click', function () { savePrintPdfToDrive(d, d.visit.id); });
+    } else {
+      $('#page').innerHTML = '<div class="card">โหลด print template ไม่ได้</div>';
     }
   }
 
-  function successBox(doc) {
-    return '<div class="card" style="margin:0;background:#f8fafc">'
-      + '<div style="font-weight:700;color:#0f172a;margin-bottom:8px"><i class="bi bi-check-circle-fill" style="color:#16a34a;margin-right:8px"></i>' + esc(doc.name || '-') + '</div>'
-      + '<div style="font-size:13px;color:#475569;margin-bottom:4px">คำโดยประมาณ: ' + esc(String(doc.word_count || 0)) + ' คำ</div>'
-      + '<div style="font-size:13px;color:#475569;margin-bottom:12px">โฟลเดอร์: ' + esc(doc.subfolder || '-') + '</div>'
-      + '<a class="btn btn-primary btn-sm" href="' + esc(doc.url) + '" target="_blank" rel="noopener noreferrer"><i class="bi bi-box-arrow-up-right"></i> เปิด Google Docs</a>'
+  // ════════════════════════════════════════════════════════════
+  // USERS
+  // ════════════════════════════════════════════════════════════
+  Routes['#/users'] = function () {
+    var page = $('#page');
+    page.innerHTML = '<div class="sk sk-block" style="height:120px;border-radius:18px"></div>';
+    call('user.list', {}).then(function (r) {
+      if (!$('#page')) return;
+      var html = pageHero('ผู้ใช้ระบบ', 'จัดการบัญชีผู้ใช้', 'bi-person-badge-fill', [
+        { val: formatNum(r.total), lbl: 'ผู้ใช้ทั้งหมด', icon: 'bi-people-fill', color1: '#f43f5e', color2: '#e11d48' }
+      ]);
+      html += '<div class="toolbar"><div style="flex:1"></div>'
+        + '<button class="btn btn-primary" id="usr-add"><i class="bi bi-plus-lg"></i> เพิ่มผู้ใช้</button></div>';
+      html += '<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table"><thead>'
+        + '<tr><th>Username</th><th>ชื่อ</th><th>บทบาท</th><th>อีเมล</th><th>สถานะ</th><th>การจัดการ</th></tr></thead><tbody>';
+      r.items.forEach(function (u) {
+        html += '<tr><td><strong>' + esc(u.username) + '</strong></td>'
+          + '<td>' + esc(u.full_name||'') + '</td>'
+          + '<td>' + roleChip(u.role) + '</td>'
+          + '<td>' + esc(u.email||'-') + '</td>'
+          + '<td>' + (u.is_active ? '<span class="badge b-approved">เปิดใช้</span>' : '<span class="badge b-draft">ปิดใช้</span>') + '</td>'
+          + '<td><button class="btn btn-ghost btn-sm" data-usr-edit="' + esc(u.id) + '"><i class="bi bi-pencil"></i></button> '
+          + '<button class="btn btn-ghost btn-sm" data-usr-toggle="' + esc(u.id) + '"><i class="bi bi-power"></i></button></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+      $('#page').innerHTML = html;
+      $('#usr-add').addEventListener('click', function () { openUserModal(); });
+      $$('[data-usr-edit]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var id = b.getAttribute('data-usr-edit');
+          var u = r.items.filter(function (x) { return x.id === id; })[0];
+          openUserModal(u);
+        });
+      });
+      $$('[data-usr-toggle]').forEach(function (b) {
+        b.addEventListener('click', function () {
+          var id = b.getAttribute('data-usr-toggle');
+          call('user.toggle', { id: id }).then(function () { toast('อัปเดตสำเร็จ','success'); Routes['#/users'](); }).catch(function (e) { alertError('ผิดพลาด', e.message); });
+        });
+      });
+    });
+  };
+  function openUserModal(u) {
+    u = u || { role: 'teacher', is_active: 'yes' };
+    var isNew = !u.id;
+    var html = '<form id="usr-form">'
+      + '<div class="fg-2">'
+      + field('Username <span class="req">*</span>', '<input class="input" name="username" value="' + esc(u.username||'') + '" required>')
+      + field('บทบาท <span class="req">*</span>', '<select class="select" name="role">'
+          + ['admin','director','academic','teacher'].map(function (r) { return '<option value="' + r + '"' + (u.role === r ? ' selected' : '') + '>' + esc(Store.boot.roles[r]) + '</option>'; }).join('')
+          + '</select>')
+      + '</div>'
+      + field('ชื่อ-สกุล <span class="req">*</span>', '<input class="input" name="full_name" value="' + esc(u.full_name||'') + '" required>')
+      + '<div class="fg-2">'
+      + field('อีเมล', '<input class="input" name="email" value="' + esc(u.email||'') + '">')
+      + field('โทรศัพท์', '<input class="input" name="phone" value="' + esc(u.phone||'') + '">')
+      + '</div>'
+      + field('ตำแหน่ง', '<input class="input" name="position" value="' + esc(u.position||'') + '">')
+      + field((isNew ? 'รหัสผ่าน <span class="req">*</span>' : 'รหัสผ่านใหม่ (เว้นว่างถ้าไม่เปลี่ยน)'), '<input class="input" type="password" name="password"' + (isNew ? ' required' : '') + '>')
+      + '<input type="hidden" name="id" value="' + esc(u.id||'') + '">'
+      + '</form>';
+    Modal.open({
+      title: isNew ? 'เพิ่มผู้ใช้ใหม่' : 'แก้ไข ' + (u.username||''),
+      html: html, large: true,
+      footer: '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button><button class="btn btn-primary" id="usr-save"><i class="bi bi-check-lg"></i> บันทึก</button>',
+      onOpen: function () {
+        $('#usr-save').addEventListener('click', function () {
+          var data = formToObj($('#usr-form'));
+          Spinner.show('กำลังบันทึก...');
+          call('user.upsert', data).then(function () { Spinner.hide(); Modal.close(); toast('บันทึกเรียบร้อย','success'); Routes['#/users'](); })
+            .catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+        });
+      }
+    });
+  }
+
+  // ════════════════════════════════════════════════════════════
+  // SETTINGS
+  // ════════════════════════════════════════════════════════════
+  Routes['#/settings'] = function () {
+    var page = $('#page');
+    page.innerHTML = '<div class="sk sk-block" style="height:120px;border-radius:18px"></div>';
+    call('setting.get', {}).then(function (settings) {
+      if (!$('#page')) return;
+      var html = pageHero('ตั้งค่าระบบ', 'จัดการข้อมูลโรงเรียนและการแสดงผล', 'bi-gear-fill');
+      html += '<div class="card"><h3 class="card-title"><i class="bi bi-building"></i> ข้อมูลโรงเรียน</h3>'
+        + '<form id="set-form">'
+        + field('ชื่อโรงเรียน', '<input class="input" name="org_name" value="' + esc(settings.org_name||'') + '">')
+        + field('โลโก้โรงเรียน', '<input class="input" type="file" id="org-logo-file" accept="image/*">' + (settings.org_logo_url ? '<div style="margin-top:6px"><img src="' + esc(settings.org_logo_url) + '" style="max-height:80px;border-radius:8px"></div>' : ''))
+        + '<input type="hidden" name="org_logo_url" value="' + esc(settings.org_logo_url||'') + '">'
+        + '<div class="fg-2">'
+        + field('สพป./สพม.', '<input class="input" name="education_area" value="' + esc(settings.education_area||'') + '">')
+        + field('โทรศัพท์', '<input class="input" name="org_phone" value="' + esc(settings.org_phone||'') + '">')
+        + '</div>'
+        + field('ที่อยู่', '<textarea class="textarea" name="org_address">' + esc(settings.org_address||'') + '</textarea>')
+        + field('อีเมล', '<input class="input" name="org_email" value="' + esc(settings.org_email||'') + '">')
+        + '<div class="fg-2">'
+        + field('ผู้อำนวยการโรงเรียน', '<input class="input" name="director_name" value="' + esc(settings.director_name||'') + '">')
+        + field('ตำแหน่ง', '<input class="input" name="director_position" value="' + esc(settings.director_position||'') + '">')
+        + '</div>'
+        + '<div class="fg-2">'
+        + field('ปีการศึกษาปัจจุบัน (พ.ศ.)', '<input class="input" name="current_academic_year" value="' + esc(settings.current_academic_year||'') + '">')
+        + field('ภาคเรียน', '<select class="select" name="current_semester"><option value="1"' + (settings.current_semester === '1' ? ' selected' : '') + '>ภาคเรียนที่ 1</option><option value="2"' + (settings.current_semester === '2' ? ' selected' : '') + '>ภาคเรียนที่ 2</option></select>')
+        + '</div>'
+        + field('Google Drive Root Folder ID', '<input class="input" name="drive_root_id" value="' + esc(settings.drive_root_id||'') + '" placeholder="เว้นว่างไว้เพื่อใช้โฟลเดอร์เดียวกับสเปรดชีต">', 'ID ของโฟลเดอร์หลักสำหรับเก็บรายงานและ Asset')
+        + field('แสดงการ์ดบัญชีทดลอง', '<select class="select" name="show_demo_users"><option value="yes"' + (settings.show_demo_users === 'yes' ? ' selected' : '') + '>เปิด (โหมด Demo)</option><option value="no"' + (settings.show_demo_users === 'no' ? ' selected' : '') + '>ปิด (Production แนะนำ)</option></select>', 'ปิดในระบบ Production')
+        + '</form>'
+        + '<div style="margin-top:16px;text-align:right"><button class="btn btn-primary" id="set-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
+        + '</div>';
+      $('#page').innerHTML = html;
+      $('#set-save').addEventListener('click', function () {
+        var data = formToObj($('#set-form'));
+        var file = $('#org-logo-file').files[0];
+
+        function finishSave() {
+          Spinner.hide(); toast('บันทึกเรียบร้อย','success');
+          // Refresh bootstrap settings and sync academic year state
+          call('app.bootstrap', {}).then(function (b) {
+            Store.boot = b;
+            var savedYear = (b.settings || {}).current_academic_year || '';
+            if (savedYear) {
+              Store.academic_year = savedYear;
+              var navSel = document.getElementById('nav-academic-year-select');
+              if (navSel) navSel.value = savedYear;
+            }
+          }).catch(function () {});
+        }
+
+        Spinner.show('กำลังบันทึกข้อมูลตั้งค่า...');
+        // 1. Save data first so Drive Root ID is updated on server
+        call('setting.update', { values: data }).then(function () {
+          if (file) {
+            Spinner.show('กำลังอัปโหลดโลโก้...');
+            window.uploadFile(file, 'settings').then(function (r) {
+              // 2. Update only logo URL after successful upload
+              call('setting.update', { values: { org_logo_url: r.url } }).then(function () {
+                finishSave();
+              }).catch(function (e) { Spinner.hide(); alertError('บันทึกโลโก้ผิดพลาด', e.message); });
+            }).catch(function (e) { Spinner.hide(); alertError('อัปโหลดโลโก้ผิดพลาด', e.message); });
+          } else {
+            finishSave();
+          }
+        }).catch(function (e) { Spinner.hide(); alertError('บันทึกผิดพลาด', e.message); });
+      });
+    });
+  };
+
+  // ════════════════════════════════════════════════════════════
+  // PROFILE
+  // ════════════════════════════════════════════════════════════
+  Routes['#/profile'] = function () {
+    var u = Store.user;
+    var html = pageHero('โปรไฟล์', esc(u.full_name||''), 'bi-person-circle');
+    html += '<div class="card"><h3 class="card-title"><i class="bi bi-person-fill"></i> ข้อมูลส่วนตัว</h3>'
+      + '<form id="prof-form">'
+      + field('ชื่อ-สกุล', '<input class="input" name="full_name" value="' + esc(u.full_name||'') + '">')
+      + '<div class="fg-2">'
+      + field('อีเมล', '<input class="input" name="email" value="' + esc(u.email||'') + '">')
+      + field('โทรศัพท์', '<input class="input" name="phone" value="' + esc(u.phone||'') + '">')
+      + '</div>'
+      + field('ตำแหน่ง', '<input class="input" name="position" value="' + esc(u.position||'') + '">')
+      + field('รูปโปรไฟล์', '<div class="photo-upload' + (u.photo_url ? ' has-image' : '') + '" id="prof-photo-upload" style="min-height:200px">'
+          + (u.photo_url ? '<img src="' + esc(u.photo_url) + '" style="border-radius:50%"><button type="button" class="photo-remove" id="prof-photo-remove"><i class="bi bi-x"></i></button>'
+              : '<i class="bi bi-person-bounding-box ph-icon"></i><div class="ph-text">คลิกเพื่ออัปโหลดรูปโปรไฟล์</div>')
+          + '<input type="file" id="prof-photo-file" accept="image/*" style="display:none">'
+          + '</div>')
+      + '<input type="hidden" name="photo_url" value="' + esc(u.photo_url||'') + '">'
+      + '</form>'
+      + '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end"><a class="btn btn-ghost" href="#/change-password"><i class="bi bi-key"></i> เปลี่ยนรหัสผ่าน</a><button class="btn btn-primary" id="prof-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
       + '</div>';
+    $('#page').innerHTML = html;
+    $('#prof-save').addEventListener('click', function () {
+      var f = $('#prof-form');
+      var data = formToObj(f);
+      var fileEl = f.querySelector('input[name="photo"]');
+      var file = fileEl && fileEl.files[0];
+      var doSave = function () {
+        delete data.photo;
+        Spinner.show('กำลังบันทึก...');
+        call('profile.update', data).then(function (u) {
+          Spinner.hide(); Store.user = u; toast('บันทึกเรียบร้อย','success');
+          Routes['#/profile']();
+        }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+      };
+      if (file) {
+        Spinner.show('กำลังอัปโหลด...');
+        window.uploadFile(file, 'users').then(function (r) { data.photo_url = r.url; Spinner.hide(); doSave(); })
+          .catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+      } else doSave();
+    });
+  };
+
+  Routes['#/change-password'] = function () {
+    var html = pageHero('เปลี่ยนรหัสผ่าน', 'อัปเดตรหัสผ่านของคุณ', 'bi-key-fill');
+    html += '<div class="card" style="max-width:540px"><form id="pwd-form">'
+      + field('รหัสผ่านเดิม', '<input class="input" type="password" name="current" required>')
+      + field('รหัสผ่านใหม่', '<input class="input" type="password" name="next" required minlength="6">')
+      + field('ยืนยันรหัสผ่านใหม่', '<input class="input" type="password" name="confirm" required minlength="6">')
+      + '</form>'
+      + '<div style="margin-top:16px;text-align:right"><button class="btn btn-primary" id="pwd-save"><i class="bi bi-check-lg"></i> เปลี่ยนรหัสผ่าน</button></div>'
+      + '</div>';
+    $('#page').innerHTML = html;
+    $('#pwd-save').addEventListener('click', function () {
+      var data = formToObj($('#pwd-form'));
+      if (data.next !== data.confirm) { alertError('ผิดพลาด','รหัสผ่านใหม่ไม่ตรงกัน'); return; }
+      Spinner.show('กำลังเปลี่ยน...');
+      call('auth.change_password', data).then(function () {
+        Spinner.hide(); alertSuccess('สำเร็จ','รหัสผ่านเปลี่ยนเรียบร้อย'); location.hash = '#/profile';
+      }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+    });
+  };
+
+  // ════════════════════════════════════════════════════════════
+  // REPORTS + AUDIT
+  // ════════════════════════════════════════════════════════════
+  Routes['#/reports'] = function () {
+    Routes['#/dashboard']();
+  };
+
+  Routes['#/audit'] = function () {
+    var page = $('#page');
+    page.innerHTML = '<div class="sk sk-block" style="height:120px;border-radius:18px"></div>';
+    call('report.audit', { per_page: 200 }).then(function (r) {
+      if (!$('#page')) return;
+      var html = pageHero('Audit Log', 'บันทึกประวัติการใช้งานระบบ', 'bi-clipboard-data-fill', [
+        { val: formatNum(r.total), lbl: 'รายการทั้งหมด', icon: 'bi-clipboard-data-fill', color1: '#6366f1', color2: '#8b5cf6' }
+      ]);
+      html += '<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table"><thead>'
+        + '<tr><th>เวลา</th><th>ผู้ใช้</th><th>การกระทำ</th><th>Entity</th><th>ID</th></tr></thead><tbody>';
+      r.items.forEach(function (a) {
+        html += '<tr><td>' + TH.smart(a.ts) + '</td>'
+          + '<td>' + esc(a.username||'-') + '</td>'
+          + '<td><code style="background:#f1f5f9;padding:2px 6px;border-radius:4px;font-size:11px">' + esc(a.action) + '</code></td>'
+          + '<td>' + esc(a.entity||'-') + '</td>'
+          + '<td><small style="color:var(--ink-muted)">' + esc(a.entity_id||'-') + '</small></td></tr>';
+      });
+      html += '</tbody></table></div></div>';
+      $('#page').innerHTML = html;
+    });
+  };
+
+  // ════════════════════════════════════════════════════════════
+  // HOMEROOM TEACHER MAPPINGS
+  // ════════════════════════════════════════════════════════════
+  Routes['#/settings/teachers'] = function () {
+    var page = $('#page');
+    page.innerHTML = '<div class="sk sk-block" style="height:120px;border-radius:18px"></div>';
+    call('mapping.list', { academic_year: Store.academic_year }).then(function (r) {
+      if (!$('#page')) return;
+      var html = pageHero('ครูประจำชั้น', 'กำหนดครูประจำชั้นสำหรับแต่ละห้องเรียน ปีการศึกษา ' + (Store.academic_year || '-'), 'bi-person-badge-fill', [
+        { val: formatNum(r.total), lbl: 'ห้องเรียนที่กำหนดแล้ว', icon: 'bi-building-fill-check', color1: '#6366f1', color2: '#8b5cf6' }
+      ]);
+      html += '<div class="toolbar">'
+        + '<div style="flex:1"></div>'
+        + '<button class="btn btn-primary" id="map-add"><i class="bi bi-plus-lg"></i> เพิ่มการกำหนดห้อง</button></div>';
+
+      if (!r.items.length) {
+        html += '<div class="card"><div class="empty-state"><i class="bi bi-person-badge"></i><p>ยังไม่มีการกำหนดครูประจำชั้นในปีการศึกษานี้</p></div></div>';
+      } else {
+        html += '<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table"><thead>'
+          + '<tr><th>ชั้น/ห้อง</th><th>ครูประจำชั้นคนที่ 1</th><th>ครูประจำชั้นคนที่ 2</th><th>แก้ไขล่าสุด</th><th>จัดการ</th></tr></thead><tbody>';
+        r.items.forEach(function (m) {
+          html += '<tr>'
+            + '<td><strong>' + esc(m.class_level) + '/' + esc(m.room) + '</strong></td>'
+            + '<td>' + esc(m.teacher1_name || '-') + '</td>'
+            + '<td>' + esc(m.teacher2_name || '-') + '</td>'
+            + '<td><small style="color:var(--ink-muted)">' + TH.smart(m.updated_at) + '</small></td>'
+            + '<td><button class="btn btn-ghost btn-sm" data-map-edit="' + esc(m.id) + '"><i class="bi bi-pencil"></i></button> '
+            + '<button class="btn btn-ghost btn-sm" data-map-del="' + esc(m.id) + '" style="color:#f43f5e"><i class="bi bi-trash"></i></button></td></tr>';
+        });
+        html += '</tbody></table></div></div>';
+      }
+      $('#page').innerHTML = html;
+      wireMappings(r.items);
+    });
+  };
+
+  function wireMappings(items) {
+    if ($('#map-add')) $('#map-add').addEventListener('click', function () { openMappingModal(); });
+    $$('[data-map-edit]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-map-edit');
+        var m = items.filter(function (x) { return x.id === id; })[0];
+        openMappingModal(m);
+      });
+    });
+    $$('[data-map-del]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var id = b.getAttribute('data-map-del');
+        confirmModal({ title: 'ลบการกำหนดห้อง?', message: 'คุณแน่ใจหรือไม่ว่าต้องการลบข้อมูลครูประจำชั้นของห้องนี้', danger: true }).then(function (ok) {
+          if (!ok) return;
+          Spinner.show('กำลังลบ...');
+          call('mapping.delete', { id: id }).then(function () {
+            Spinner.hide(); toast('ลบเรียบร้อย', 'success'); Routes['#/settings/teachers']();
+          }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+        });
+      });
+    });
   }
 
-  function field(label, input) {
-    return '<div class="field" style="margin-bottom:14px"><label class="label" style="display:block;margin-bottom:6px;font-weight:700;font-size:13px;color:var(--ink)">' + esc(label) + '</label>' + input + '</div>';
+  function openMappingModal(m) {
+    m = m || { academic_year: Store.academic_year || '' };
+    var isNew = !m.id;
+    var html = '<form id="map-form">'
+      + '<div class="fg-2">'
+      + field('ปีการศึกษา <span class="req">*</span>', '<input class="input" name="academic_year" value="' + esc(m.academic_year) + '" required maxlength="4" inputmode="numeric">')
+      + '<div></div>'
+      + '</div>'
+      + '<div class="fg-2">'
+      + field('ชั้น <span class="req">*</span>', '<input class="input" name="class_level" value="' + esc(m.class_level || '') + '" placeholder="เช่น ม.1" required>')
+      + field('ห้อง <span class="req">*</span>', '<input class="input" name="room" value="' + esc(m.room || '') + '" placeholder="เช่น 1" required>')
+      + '</div>'
+      + field('ครูประจำชั้นคนที่ 1 <span class="req">*</span>', '<div style="display:flex;gap:6px"><input class="input" id="t1-display" value="' + esc(m.teacher1_name || '') + '" placeholder="คลิกเพื่อเลือกครู" readonly style="cursor:pointer"><button type="button" class="btn btn-ghost" id="t1-pick-btn"><i class="bi bi-search"></i></button></div><input type="hidden" name="teacher1_name" value="' + esc(m.teacher1_name || '') + '"><input type="hidden" name="teacher1_id" value="' + esc(m.teacher1_id || '') + '">')
+      + field('ครูประจำชั้นคนที่ 2', '<div style="display:flex;gap:6px"><input class="input" id="t2-display" value="' + esc(m.teacher2_name || '') + '" placeholder="คลิกเพื่อเลือกครู (ถ้ามี)" readonly style="cursor:pointer"><button type="button" class="btn btn-ghost" id="t2-pick-btn"><i class="bi bi-search"></i></button></div><input type="hidden" name="teacher2_name" value="' + esc(m.teacher2_name || '') + '"><input type="hidden" name="teacher2_id" value="' + esc(m.teacher2_id || '') + '">')
+      + '<input type="hidden" name="id" value="' + esc(m.id || '') + '">'
+      + '</form>';
+
+    Modal.open({
+      title: isNew ? 'กำหนดครูประจำชั้น' : 'แก้ไขการกำหนดห้อง ' + m.class_level + '/' + m.room,
+      html: html, large: true,
+      footer: '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button><button class="btn btn-primary" id="map-save"><i class="bi bi-check-lg"></i> บันทึก</button>',
+      onOpen: function () {
+        var pick1 = function() {
+          var data = formToObj($('#map-form'));
+          openTeacherPicker(function(u) {
+            data.teacher1_name = u.full_name;
+            data.teacher1_id = u.id;
+            openMappingModal(data);
+          });
+        };
+        var pick2 = function() {
+          var data = formToObj($('#map-form'));
+          openTeacherPicker(function(u) {
+            data.teacher2_name = u.full_name;
+            data.teacher2_id = u.id;
+            openMappingModal(data);
+          });
+        };
+        $('#t1-display').addEventListener('click', pick1);
+        $('#t1-pick-btn').addEventListener('click', pick1);
+        $('#t2-display').addEventListener('click', pick2);
+        $('#t2-pick-btn').addEventListener('click', pick2);
+
+        $('#map-save').addEventListener('click', function () {
+          var data = formToObj($('#map-form'));
+          if (!data.academic_year || !data.class_level || !data.room || !data.teacher1_name) {
+            alertError('กรอกข้อมูลไม่ครบ', 'กรุณากรอกข้อมูลที่จำเป็น (*) ให้ครบถ้วน'); return;
+          }
+          Spinner.show('กำลังบันทึก...');
+          call('mapping.upsert', data).then(function () {
+            Spinner.hide(); Modal.close(); toast('บันทึกเรียบร้อย', 'success'); Routes['#/settings/teachers']();
+          }).catch(function (e) { Spinner.hide(); alertError('ผิดพลาด', e.message); });
+        });
+      }
+    });
   }
 
-  function setInlineStatus(text) {
-    var el = $('#doc-inline-status');
-    if (el) el.textContent = text;
+  // ════════════════════════════════════════════════════════════
+  // Helpers
+  // ════════════════════════════════════════════════════════════
+  function parseJSON(s, def) {
+    if (!s) return def;
+    if (typeof s !== 'string') return s;
+    try { return JSON.parse(s); } catch (e) { return def; }
+  }
+  function radioRow(name, current, opts) {
+    return '<div class="check-group">' + opts.map(function (o) {
+      return '<label class="check-card' + (current === o.v ? ' is-checked' : '') + '"><input type="radio" name="' + name + '" value="' + esc(o.v) + '"' + (current === o.v ? ' checked' : '') + '><span>' + esc(o.l) + '</span></label>';
+    }).join('') + '</div>';
+  }
+  function checkRow(name, current, label) {
+    return '<label class="check-card' + (_yes(current) ? ' is-checked' : '') + '" style="margin-top:6px"><input type="checkbox" data-field="' + name + '"' + (_yes(current) ? ' checked' : '') + '><span>' + esc(label) + '</span></label>';
+  }
+  function checkGroup(name, current, opts, captureAs) {
+    current = current || [];
+    return '<div class="check-group">' + opts.map(function (o) {
+      var checked = current.indexOf(o.v) >= 0;
+      return '<label class="check-card' + (checked ? ' is-checked' : '') + '"><input type="checkbox" data-checkgroup="' + (captureAs||name) + '" value="' + esc(o.v) + '"' + (checked ? ' checked' : '') + '><span>' + esc(o.l) + '</span></label>';
+    }).join('') + '</div>';
+  }
+  function _yes(v) { var s = String(v||'').toLowerCase(); return s === 'yes' || s === 'true' || s === '1' || v === true; }
+  function wireCheckCards() {
+    $$('.check-card input').forEach(function (i) {
+      i.addEventListener('change', function () {
+        var card = i.closest('.check-card');
+        if (i.type === 'radio') {
+          var name = i.name;
+          $$('input[name="' + name + '"]').forEach(function (j) {
+            j.closest('.check-card').classList.toggle('is-checked', j.checked);
+          });
+        } else {
+          card.classList.toggle('is-checked', i.checked);
+        }
+      });
+    });
   }
 
-  function setModalStatus(text) {
-    var el = $('#doc-modal-status');
-    if (el) el.textContent = text;
-  }
+  // Expose
+  window.WIZ_renderWizard = renderWizard;
 
-  if (window.location && (window.location.hash === '#/dashboard' || !window.location.hash || window.location.hash === '#/')) {
-    setTimeout(function () {
-      if (Routes['#/dashboard']) Routes['#/dashboard']();
-    }, 100);
-  }
+})();
+</script>
+<script type="text/x-shvr-core-print" id="shvr-print-script">
+/* ═══════════════════════════════════════════════════════════════
+   SHVR · Print Form Builder (4-page A4 official layout)
+   ═══════════════════════════════════════════════════════════════ */
+(function () {
+  'use strict';
+  var esc = window.esc, TH = window.TH;
+
+  window.buildPrintForm = function (d) {
+    var v = d.visit || {}, s = d.student || {}, t = d.teacher || {};
+    var settings = d.settings || {};
+    var members = d.members || [];
+    var mapping = d.homeroom_teachers || null;
+
+    function parseJSON(x, def) { if (!x) return def; if (typeof x !== 'string') return x; try { return JSON.parse(x); } catch (e) { return def; } }
+    var _yes = function (x) { var str = String(x || "").toLowerCase(); return str === "yes" || str === "true" || str === "1" || x === true; };
+    var statusDep = parseJSON(v.status_dependency, []);
+    var housingCond = parseJSON(v.housing_condition, []);
+    var helpNeeded = parseJSON(v.help_needed, []);
+    var helpReceived = parseJSON(v.help_received, []);
+    var famRel = parseJSON(v.family_relations, {});
+    var health = parseJSON(v.health, []);
+    var safety = parseJSON(v.safety, []);
+    var resp = parseJSON(v.responsibilities, []);
+    var hobbies = parseJSON(v.hobbies, []);
+    var subs = parseJSON(v.substance_behavior, []);
+    var viol = parseJSON(v.violence_behavior, []);
+    var sex = parseJSON(v.sex_behavior, []);
+    var game = parseJSON(v.game_addiction, []);
+    var elec = parseJSON(v.electronics_use, []);
+    var phType = parseJSON(v.photo_house_type, []);
+    var reportCats = parseJSON(v.student_report_categories, []);
+    var riskCats = parseJSON(v.student_risk_categories, []);
+
+    function chk(arr, val, label) {
+      var ok = (arr||[]).indexOf(val) >= 0;
+      return '<span class="pr-checkmark' + (ok ? ' checked' : '') + '"></span> ' + esc(label);
+    }
+    function rad(cur, val, label) {
+      return '<span class="pr-radio' + (cur === val ? ' checked' : '') + '"></span> ' + esc(label);
+    }
+    function chkBox(ok) { return '<span class="pr-checkmark' + (ok ? ' checked' : '') + '"></span>'; }
+    function radBox(ok) { return '<span class="pr-radio' + (ok ? ' checked' : '') + '"></span>'; }
+    function idBoxes(num) {
+      var s = String(num||'').padEnd(13, ' ');
+      var html = '<span class="pr-id-boxes">';
+      for (var i = 0; i < 13; i++) {
+        html += '<span class="pr-id-box">' + esc(s.charAt(i).trim()) + '</span>';
+        if (i === 0 || i === 4 || i === 9 || i === 11) html += '<span class="pr-id-sep">-</span>';
+      }
+      html += '</span>';
+      return html;
+    }
+
+    var html = '<div class="print-doc">';
+    // Toolbar
+    html += '<div class="print-toolbar"><div class="pt-title"><i class="bi bi-printer-fill"></i> ' + esc(v.visit_code||'') + ' · ' + esc((s.prefix||'') + (s.first_name||'') + ' ' + (s.last_name||'')) + '</div>'
+      + '<div class="pt-actions">'
+      + '<a class="btn btn-ghost" href="#/visits"><i class="bi bi-arrow-left"></i> กลับ</a>'
+      + '<button class="btn btn-ghost" id="pr-save-drive"><i class="bi bi-cloud-arrow-up-fill"></i> บันทึกลง Drive</button>'
+      + '<button class="btn btn-primary" id="pr-do-print"><i class="bi bi-printer-fill"></i> พิมพ์ / บันทึก PDF</button>'
+      + '</div></div>';
+
+    var logoHtml = settings.org_logo_url ? '<div style="text-align:center;margin-bottom:8px"><img src="' + esc(settings.org_logo_url) + '" style="width:60px;height:60px;object-fit:contain"></div>' : '';
+
+    // ── PAGE 1 ──
+    html += '<div class="pr-page">'
+      + logoHtml
+      + '<div class="pr-head"><div style="width:60px"></div><div class="pr-head-title">บันทึกการเยี่ยมบ้าน</div><div class="pr-head-page">หน้า 1/4</div></div>'
+      + '<div class="pr-section" style="font-size:12px">'
+      + '<strong>คำชี้แจง :</strong><br>'
+      + '● แบบบันทึกการเยี่ยมบ้านฉบับนี้รวมการคัดกรองนักเรียนยากจนเข้าด้วยกัน เพื่อให้คุณครูสามารถลงพื้นที่ได้พร้อมกันในครั้งเดียว<br>'
+      + '● การตอบแบบสอบถาม : หากเป็นตัวเลือก ○ หมายถึง ให้ตอบเพียงข้อเดียว และ ☐ หมายถึง ให้ตอบได้มากกว่า 1 ข้อ'
+      + '</div>'
+      // School + photo
+      + '<div style="display:flex;gap:10px;align-items:flex-start;margin:10px 0">'
+      + '<div style="flex:1">'
+      + '<div class="pr-row"><span class="lbl">โรงเรียน</span><span class="val">' + esc(v.school_name||settings.org_name||'') + '</span><span class="lbl">สพป./สพม.</span><span class="val">' + esc(v.education_area||settings.education_area||'') + '</span></div>'
+      + '<div class="pr-row"><span class="lbl">1. ชื่อนักเรียน</span><span class="val">' + esc((s.prefix||'') + (s.first_name||'')) + '</span><span class="lbl">นามสกุล</span><span class="val">' + esc(s.last_name||'') + '</span><span class="lbl">ชั้น</span><span class="val">' + esc((s.class_level||'') + (s.room ? '/'+s.room : '')) + '</span></div>'
+      + '<div class="pr-row"><span class="lbl">เลขที่บัตรประชาชน</span>' + idBoxes(s.citizen_id) + '</div>'
+      + '<div class="pr-row"><span class="lbl">2. ชื่อผู้ปกครอง</span><span class="val">' + esc(v.guardian_first_name||'') + '</span><span class="lbl">นามสกุล</span><span class="val">' + esc(v.guardian_last_name||'') + '</span><span class="lbl">โทรศัพท์</span><span class="val">' + esc(v.guardian_phone||'') + '</span>' + radBox(v.has_guardian === 'no') + ' ไม่มีผู้ปกครอง</div>'
+      + '<div class="pr-row"><span class="lbl">ความสัมพันธ์</span><span class="val">' + esc(v.guardian_relation||'') + '</span><span class="lbl">อาชีพ</span><span class="val">' + esc(v.guardian_occupation||'') + '</span><span class="lbl">การศึกษาสูงสุด</span><span class="val">' + esc(v.guardian_education||'') + '</span></div>'
+      + '<div class="pr-row"><span class="lbl">เลขที่บัตรประชาชน</span>' + idBoxes(v.guardian_citizen_id) + ' ' + chkBox(_yes(v.guardian_no_id)) + ' ไม่มีบัตรประจำตัวประชาชน</div>'
+      + '<div class="pr-row">' + chkBox(_yes(v.guardian_welfare_registered)) + ' เคยลงทะเบียนเพื่อสวัสดิการแห่งรัฐ (ลงทะเบียนคนจน)</div>'
+      + '</div>'
+      + '<div class="pr-photo-box">' + (v.photo_student||s.photo_url ? '<img src="' + esc(v.photo_student||s.photo_url) + '">' : 'รูปถ่ายนักเรียน') + '</div>'
+      + '</div>'
+      // Section 3 income table
+      + '<div class="pr-section">'
+      + '<div><strong>3. จำนวนสมาชิกในครัวเรือน (รวมตัวนักเรียน)</strong> ' + esc(v.household_count||'') + ' คน มีรายละเอียดดังนี้ (กรอกเฉพาะนักเรียนยากจนเท่านั้น)</div>'
+      + '<table class="pr-table" style="margin-top:6px">'
+      + '<thead><tr><th rowspan="2" style="width:30px">คนที่</th><th rowspan="2" style="width:90px"><span class="th-stack"><span>ความสัมพันธ์</span><span>กับนักเรียน</span></span></th><th rowspan="2" style="width:35px">อายุ</th><th rowspan="2" style="width:58px"><span class="th-stack"><span>ความพิการ</span><span>(&#10003; หรือ -)</span></span></th><th colspan="5">รายได้เฉลี่ยต่อเดือนแยกตามประเภท (บาท/เดือน)</th><th rowspan="2">รายได้รวม<br>เฉลี่ยต่อเดือน</th></tr>'
+      + '<tr><th>ค่าจ้าง<br>เงินเดือน</th><th>เกษตร<br>(หลังหัก)</th><th>ธุรกิจ<br>(หลังหัก)</th><th>สวัสดิการ<br>รัฐ/เอกชน</th><th>รายได้<br>แหล่งอื่น</th></tr>'
+      + '</thead><tbody>';
+    for (var i = 0; i < 8; i++) {
+      var m = members[i] || {};
+      html += '<tr><td>' + (i+1) + '</td>'
+        + '<td class="lbl">' + esc(m.relation||'') + '</td>'
+        + '<td>' + esc(m.age||'') + '</td>'
+        + '<td>' + esc(m.disability||'') + '</td>'
+        + '<td>' + (m.income_wage ? Number(m.income_wage).toLocaleString() : '') + '</td>'
+        + '<td>' + (m.income_agri ? Number(m.income_agri).toLocaleString() : '') + '</td>'
+        + '<td>' + (m.income_business ? Number(m.income_business).toLocaleString() : '') + '</td>'
+        + '<td>' + (m.income_welfare ? Number(m.income_welfare).toLocaleString() : '') + '</td>'
+        + '<td>' + (m.income_other ? Number(m.income_other).toLocaleString() : '') + '</td>'
+        + '<td>' + (m.total ? Number(m.total).toLocaleString() : '') + '</td></tr>';
+    }
+    html += '<tr class="total-row"><td colspan="9" style="text-align:right">รวมรายได้ครัวเรือน (รายการที่ 1-8)</td><td>' + (v.total_income ? Number(v.total_income).toLocaleString() : '0') + '</td></tr>'
+      + '<tr class="total-row"><td colspan="9" style="text-align:right">รายได้ครัวเรือนเฉลี่ยต่อคน (รวมรายได้ ÷ จำนวนสมาชิก)</td><td>' + (v.avg_income_per_person ? Number(v.avg_income_per_person).toLocaleString() : '0') + '</td></tr>'
+      + '</tbody></table></div>';
+    // Section 4
+    html += '<div class="pr-section"><strong>4. สถานะของครัวเรือน (กรอกเฉพาะบุคคลที่อาศัยในบ้านปัจจุบัน)</strong>'
+      + '<div class="pr-row" style="margin-top:6px"><span class="lbl">4.1 ครัวเรือนมีภาระพึ่งพิง:</span> '
+      + chk(statusDep, 'has_disabled', 'มีคนพิการ') + ' &nbsp; '
+      + chk(statusDep, 'has_elderly', 'มีผู้สูงอายุเกิน 60 ปี') + ' &nbsp; '
+      + chk(statusDep, 'single_parent', 'เป็นพ่อ/แม่เลี้ยงเดี่ยว') + ' &nbsp; '
+      + chk(statusDep, 'unemployed_15_65', 'มีคนอายุ 15-65 ว่างงาน')
+      + '</div>'
+      + '<div class="pr-row"><span class="lbl">4.2 ประเภทที่อยู่อาศัย:</span> '
+      + rad(v.housing_type, 'own', 'บ้านของตนเอง') + ' &nbsp; '
+      + rad(v.housing_type, 'rent', 'บ้านเช่า') + ' &nbsp; '
+      + rad(v.housing_type, 'with_others', 'อาศัยอยู่กับผู้อื่น')
+      + '</div>'
+      + '<div class="pr-row" style="margin-bottom:2px"><span class="lbl">4.3 สภาพที่อยู่อาศัย:</span> '
+      + '<div style="flex:1">'
+      + chk(housingCond, 'dilapidated', 'สภาพบ้านชำรุดทรุดโทรม / ทำจากวัสดุพื้นบ้าน') + '<br>'
+      + chk(housingCond, 'no_toilet', 'ไม่มีห้องส้วมในที่อยู่อาศัยและบริเวณ')
+      + '</div>'
+      + '</div>'
+      + '<div class="pr-row" style="margin-bottom:2px"><span class="lbl">4.4 ยานพาหนะของครอบครัว:</span></div>'
+      + '<div class="pr-grid-3" style="padding-left:20px;margin-bottom:4px">'
+      + '<div>- รถยนต์ส่วนบุคคล: ' + rad(v.vehicle_car, 'yes', 'มี') + ' ' + rad(v.vehicle_car, 'no', 'ไม่มี') + '</div>'
+      + '<div>- รถปิกอัพ/บรรทุก/ตู้: ' + rad(v.vehicle_pickup, 'yes', 'มี') + ' ' + rad(v.vehicle_pickup, 'no', 'ไม่มี') + '</div>'
+      + '<div>- รถไถ/เกี่ยวข้าว: ' + rad(v.vehicle_tractor, 'yes', 'มี') + ' ' + rad(v.vehicle_tractor, 'no', 'ไม่มี') + '</div>'
+      + '</div>'
+      + '<div class="pr-row" style="margin-bottom:2px"><span class="lbl">4.5 เป็นเกษตรกร มีที่ดินทำกิน (รวมเช่า):</span> '
+      + chkBox(v.farmer_land === 'under_1_rai') + ' ไม่เกิน 1 ไร่ &nbsp; '
+      + chkBox(v.farmer_land === 'no_land') + ' ไม่มีที่ดินเป็นของตนเอง'
+      + '</div>'
+      + '</div>'
+      + '</div>';
+
+    // ── PAGE 2 ──
+    html += '<div class="pr-page">'
+      + logoHtml
+      + '<div class="pr-head"><div style="width:60px"></div><div class="pr-head-title">บันทึกการเยี่ยมบ้าน</div><div class="pr-head-page">หน้า 2/4</div></div>'
+      + '<div class="pr-section"><strong>5. ความสัมพันธ์ในครอบครัว</strong>'
+      + '<div class="pr-row"><span class="lbl">5.1 สมาชิกในครอบครัวมีเวลาอยู่ร่วมกันกี่ชั่วโมงต่อวัน</span><span class="val" style="max-width:120px">' + esc(v.family_hours_together||'') + '</span> ชั่วโมง/วัน</div>'
+      + '<div class="pr-row"><strong>5.2 ความสัมพันธ์ระหว่างนักเรียนกับสมาชิกในครอบครัว</strong></div>'
+      + '<table class="pr-table"><thead><tr><th>สมาชิก</th><th>สนิทสนม</th><th>เฉยๆ</th><th>ห่างเหิน</th><th>ขัดแย้ง</th><th>ไม่มี</th></tr></thead><tbody>'
+      + ['father','mother','brother','sister','grandparent','relative','other'].map(function (k) {
+          var labels = { father:'บิดา', mother:'มารดา', brother:'พี่ชาย/น้องชาย', sister:'พี่สาว/น้องสาว', grandparent:'ปู่/ย่า/ตา/ยาย', relative:'ญาติ', other:'อื่นๆ' };
+          var cur = famRel[k] || '';
+          return '<tr><td class="lbl">' + labels[k] + '</td>'
+            + ['close','normal','distant','conflict','none'].map(function (val) { return '<td>' + (cur === val ? '✓' : '') + '</td>'; }).join('')
+            + '</tr>';
+        }).join('')
+      + '</tbody></table>'
+      + '<div class="pr-row"><span class="lbl">5.3 ผู้ปกครองไม่อยู่บ้านฝากเด็กกับ:</span> '
+      + rad(v.guardian_absent_with, 'relative', 'ญาติ') + ' &nbsp;'
+      + rad(v.guardian_absent_with, 'neighbor', 'เพื่อนบ้าน') + ' &nbsp;'
+      + rad(v.guardian_absent_with, 'alone', 'อยู่บ้านด้วยตนเอง') + ' &nbsp;'
+      + rad(v.guardian_absent_with, 'other', 'อื่นๆ') + ' <span class="val" style="max-width:140px">' + esc(v.guardian_absent_other||'') + '</span>'
+      + '</div>'
+      + '<div class="pr-row"><span class="lbl">5.5 นักเรียนได้รับค่าใช้จ่ายจาก</span><span class="val">' + esc(v.student_income_from||'') + '</span> นักเรียนทำงานหารายได้ อาชีพ <span class="val">' + esc(v.student_work_occupation||'') + '</span></div>'
+      + '<div class="pr-row"><span class="lbl">รายได้วันละ</span><span class="val">' + esc(v.student_daily_income||'') + '</span> บาท นักเรียนได้เงินมาโรงเรียนวันละ <span class="val">' + esc(v.student_school_allowance||'') + '</span> บาท</div>'
+      + '<div class="pr-row"><strong>5.6 สิ่งที่ผู้ปกครองต้องการให้โรงเรียนช่วยเหลือ:</strong> '
+      + chk(helpNeeded, 'study', 'ด้านการเรียน') + ' &nbsp; '
+      + chk(helpNeeded, 'behavior', 'ด้านพฤติกรรม') + ' &nbsp; '
+      + chk(helpNeeded, 'economy', 'ด้านเศรษฐกิจ (ขอรับทุน)') + ' &nbsp; '
+      + chk(helpNeeded, 'other', 'อื่นๆ ระบุ') + ' <span class="val">' + esc(v.help_needed_other||'') + '</span>'
+      + '</div>'
+      + '<div class="pr-row"><strong>5.7 ความช่วยเหลือที่ครอบครัวเคยได้รับ:</strong> '
+      + chk(helpReceived, 'elderly', 'เบี้ยผู้สูงอายุ') + ' &nbsp; '
+      + chk(helpReceived, 'disabled', 'เบี้ยพิการ') + ' &nbsp; '
+      + chk(helpReceived, 'other', 'อื่นๆ ระบุ') + ' <span class="val">' + esc(v.help_received_other||'') + '</span>'
+      + '</div>'
+      + '<div class="pr-row"><strong>5.8 ข้อห่วงใยของผู้ปกครองที่มีต่อนักเรียน:</strong></div>'
+      + '<div style="border:1px solid #333;min-height:60px;padding:6px;margin-top:4px">' + esc(v.guardian_concerns||'') + '</div>'
+      + '</div>'
+      + '<div class="pr-section"><strong>6. พฤติกรรมและความเสี่ยง</strong>'
+      + '<div style="margin-top:6px"><strong>6.1 สุขภาพ:</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px">'
+      + '<div>' + chk(health, 'weak', 'ร่างกายไม่แข็งแรง') + '</div>'
+      + '<div>' + chk(health, 'chronic', 'มีโรคประจำตัวหรือเจ็บป่วยบ่อย') + '</div>'
+      + '<div>' + chk(health, 'malnutrition', 'มีภาวะทุพโภชนาการ') + '</div>'
+      + '<div>' + chk(health, 'serious', 'ป่วยเป็นโรคร้ายแรง/เรื้อรัง') + '</div>'
+      + '<div>' + chk(health, 'low_fitness', 'สมรรถภาพทางร่างกายต่ำ') + '</div>'
+      + '</div>'
+      + '<div style="margin-top:6px"><strong>6.2 สวัสดิการหรือความปลอดภัย:</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px">'
+      + '<div>' + chk(safety, 'parents_separated', 'พ่อแม่แยกทาง/แต่งงานใหม่') + '</div>'
+      + '<div>' + chk(safety, 'community_risk', 'พักอยู่ในชุมชนแออัด') + '</div>'
+      + '<div>' + chk(safety, 'family_sick', 'มีบุคคลในครอบครัวเจ็บป่วยร้ายแรง') + '</div>'
+      + '<div>' + chk(safety, 'family_drugs', 'บุคคลในครอบครัวติดสารเสพติด') + '</div>'
+      + '<div>' + chk(safety, 'family_gamble', 'บุคคลในครอบครัวเล่นการพนัน') + '</div>'
+      + '<div>' + chk(safety, 'family_conflict', 'มีความขัดแย้ง/ทะเลาะในครอบครัว') + '</div>'
+      + '<div>' + chk(safety, 'no_caretaker', 'ไม่มีผู้ดูแล') + '</div>'
+      + '<div>' + chk(safety, 'family_violence', 'มีความขัดแย้งและความรุนแรง') + '</div>'
+      + '<div>' + chk(safety, 'abused', 'ถูกทารุณ/ทำร้าย') + '</div>'
+      + '<div>' + chk(safety, 'sexual_abuse', 'ถูกล่วงละเมิดทางเพศ') + '</div>'
+      + '<div>' + chk(safety, 'gambling', 'เล่นการพนัน') + '</div>'
+      + '</div>'
+      + '<div class="pr-row" style="margin-top:6px"><strong>6.3 ระยะทางระหว่างบ้านไปโรงเรียน (ไป/กลับ):</strong> <span class="val" style="max-width:80px">' + esc(v.distance_km||'') + '</span> กิโลเมตร ใช้เวลาเดินทาง <span class="val" style="max-width:50px">' + esc(v.travel_time_hr||'') + '</span> ชม. <span class="val" style="max-width:50px">' + esc(v.travel_time_min||'') + '</span> นาที</div>'
+      + '<div class="pr-row">การเดินทาง: '
+      + ['parent','bus','motorcycle','school_bus','car','bicycle','walk','other'].map(function (k) {
+        var labels = { parent:'ผู้ปกครองมาส่ง', bus:'รถโดยสาร', motorcycle:'มอเตอร์ไซค์', school_bus:'รถโรงเรียน', car:'รถยนต์', bicycle:'จักรยาน', walk:'เดิน', other:'อื่นๆ' };
+        return rad(v.travel_mode, k, labels[k]);
+      }).join(' &nbsp;')
+      + '</div>'
+      + '</div>'
+      + '</div>';
+
+    // ── PAGE 3 ──
+    html += '<div class="pr-page">'
+      + logoHtml
+      + '<div class="pr-head"><div style="width:60px"></div><div class="pr-head-title">บันทึกการเยี่ยมบ้าน</div><div class="pr-head-page">หน้า 3/4</div></div>'
+      + '<div class="pr-section">'
+      + '<div><strong>6.4 ภาระงานความรับผิดชอบของนักเรียนที่มีต่อครอบครัว</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px">'
+      + '<div>' + chk(resp, 'housework', 'ช่วยงานบ้าน') + '</div>'
+      + '<div>' + chk(resp, 'caregiver', 'ช่วยดูแลคนเจ็บป่วย/พิการ') + '</div>'
+      + '<div>' + chk(resp, 'sell', 'ช่วยค้าขายเล็กๆ น้อยๆ') + '</div>'
+      + '<div>' + chk(resp, 'work_near', 'ทำงานแถวบ้าน') + '</div>'
+      + '<div>' + chk(resp, 'farm', 'ช่วยงานในนาไร่') + '</div>'
+      + '<div>' + chk(resp, 'other', 'อื่นๆ ระบุ') + ' <span class="val">' + esc(v.responsibilities_other||'') + '</span></div>'
+      + '</div>'
+      + '<div style="margin-top:8px"><strong>6.5 กิจกรรมยามว่างหรืองานอดิเรก</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px">'
+      + '<div>' + chk(hobbies, 'tv', 'ดูทีวี/ฟังเพลง') + '</div>'
+      + '<div>' + chk(hobbies, 'mall', 'ไปเที่ยวห้าง/ดูหนัง') + '</div>'
+      + '<div>' + chk(hobbies, 'reading', 'อ่านหนังสือ') + '</div>'
+      + '<div>' + chk(hobbies, 'friends', 'ไปหาเพื่อน/เพื่อน') + '</div>'
+      + '<div>' + chk(hobbies, 'racing', 'แว้น/สก๊อย') + '</div>'
+      + '<div>' + chk(hobbies, 'game', 'เล่นเกม คอม/มือถือ') + '</div>'
+      + '<div>' + chk(hobbies, 'park', 'ไปสวนสาธารณะ') + '</div>'
+      + '<div>' + chk(hobbies, 'snooker', 'ไปร้านสนุกเกอร์') + '</div>'
+      + '<div>' + chk(hobbies, 'other', 'อื่นๆ ระบุ') + ' <span class="val">' + esc(v.hobbies_other||'') + '</span></div>'
+      + '</div>'
+      + '<div style="margin-top:8px"><strong>6.6 พฤติกรรมการใช้สารเสพติด</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px">'
+      + '<div>' + chk(subs, 'friends_drug', 'คบเพื่อนในกลุ่มที่ใช้สารเสพติด') + '</div>'
+      + '<div>' + chk(subs, 'family_drug', 'สมาชิกในครอบครัวข้องเกี่ยวกับยาเสพติด') + '</div>'
+      + '<div>' + chk(subs, 'env_drug', 'อยู่ในสภาพแวดล้อมที่ใช้สารเสพติด') + '</div>'
+      + '<div>' + chk(subs, 'current_drug', 'ปัจจุบันเกี่ยวข้องกับสารเสพติด') + '</div>'
+      + '<div>' + chk(subs, 'addict', 'เป็นผู้ติดบุหรี่ สุรา หรือสารเสพติดอื่น') + '</div>'
+      + '</div>'
+      + '<div style="margin-top:8px"><strong>6.7 พฤติกรรมการใช้ความรุนแรง</strong></div>'
+      + '<div class="pr-grid-3" style="padding-left:14px">'
+      + '<div>' + chk(viol, 'fight', 'มีการทะเลาะวิวาท') + '</div>'
+      + '<div>' + chk(viol, 'aggressive', 'ก้าวร้าว เกเร') + '</div>'
+      + '<div>' + chk(viol, 'fight_often', 'ทะเลาะวิวาทเป็นประจำ') + '</div>'
+      + '<div>' + chk(viol, 'hurt_others', 'ทำร้ายร่างกายผู้อื่น') + '</div>'
+      + '<div>' + chk(viol, 'self_harm', 'ทำร้ายร่างกายตนเอง') + '</div>'
+      + '</div>'
+      + '<div style="margin-top:8px"><strong>6.8 พฤติกรรมทางเพศ</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px">'
+      + '<div>' + chk(sex, 'sex_seller_group', 'อยู่ในกลุ่มขายบริการ') + '</div>'
+      + '<div>' + chk(sex, 'sex_phone_long', 'ใช้เครื่องมือสื่อสารด้านเพศนานและบ่อย') + '</div>'
+      + '<div>' + chk(sex, 'pregnant', 'ตั้งครรภ์') + '</div>'
+      + '<div>' + chk(sex, 'sex_seller', 'ขายบริการทางเพศ') + '</div>'
+      + '<div>' + chk(sex, 'sex_phone_obsess', 'หมกมุ่นใช้เครื่องมือสื่อสารทางเพศ') + '</div>'
+      + '<div>' + chk(sex, 'sex_promiscuous', 'มีการมั่วสุมทางเพศ') + '</div>'
+      + '</div>'
+      + '<div style="margin-top:8px"><strong>6.9 การติดเกม</strong></div>'
+      + '<div class="pr-grid-3" style="padding-left:14px">'
+      + '<div>' + chk(game, 'over_1hr', 'เล่นเกมเกินวันละ 1 ชม.') + '</div>'
+      + '<div>' + chk(game, 'no_creativity', 'ขาดจินตนาการ') + '</div>'
+      + '<div>' + chk(game, 'isolate', 'เก็บตัว แยกตัว') + '</div>'
+      + '<div>' + chk(game, 'overspend', 'ใช้จ่ายเงินผิดปกติ') + '</div>'
+      + '<div>' + chk(game, 'game_group', 'อยู่ในกลุ่มเพื่อนเล่นเกม') + '</div>'
+      + '<div>' + chk(game, 'game_near', 'ร้านเกมอยู่ใกล้บ้าน') + '</div>'
+      + '<div>' + chk(game, 'over_2hr', 'ใช้เวลาเล่นเกมเกิน 2 ชม.') + '</div>'
+      + '<div>' + chk(game, 'obsess', 'หมกมุ่น จริงจัง') + '</div>'
+      + '<div>' + chk(game, 'steal_money', 'ลักขโมยเงินเพื่อเล่นเกม') + '</div>'
+      + '</div>'
+      + '<div style="margin-top:6px"><strong>6.10 การเข้าถึง Internet ที่บ้าน:</strong> '
+      + rad(v.internet_access, 'yes', 'สามารถเข้าถึง Internet ได้') + ' &nbsp; '
+      + rad(v.internet_access, 'no', 'ไม่สามารถเข้าถึง Internet ได้')
+      + '</div>'
+      + '<div style="margin-top:6px"><strong>6.11 การใช้เครื่องมือสื่อสาร</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px">'
+      + '<div>' + chk(elec, 'phone_in_class', 'เคยใช้โทรศัพท์ระหว่างเรียน') + '</div>'
+      + '<div>' + chk(elec, 'social_1hr', 'เข้าใช้ Social เกินวันละ 1 ชม.') + '</div>'
+      + '<div>' + chk(elec, 'phone_in_class_freq', 'ใช้โทรศัพท์ระหว่างเรียน 2-3 ครั้ง/วัน') + '</div>'
+      + '<div>' + chk(elec, 'social_2hr', 'เข้าใช้ Social เกินวันละ 2 ชม.') + '</div>'
+      + '</div>'
+      + '</div>'
+      + '<div class="pr-section" style="margin-top:10px"><strong>ผู้ให้ข้อมูลนักเรียน</strong>'
+      + '<div class="pr-grid-3" style="padding-left:14px;margin-top:4px">'
+      + ['father','mother','brother','sister','aunt_y','aunt_o','aunt','uncle','gpa','gma','mgpa','mgma','great','stepfather','stepmother'].map(function (k) {
+          var labels = { father:'บิดา',mother:'มารดา',brother:'พี่ชาย',sister:'พี่สาว',aunt_y:'น้า',aunt_o:'อา',aunt:'ป้า',uncle:'ลุง',gpa:'ปู่',gma:'ย่า',mgpa:'ตา',mgma:'ยาย',great:'ทวด',stepfather:'พ่อเลี้ยง',stepmother:'แม่เลี้ยง' };
+          return '<div>' + rad(v.informant, k, labels[k]) + '</div>';
+        }).join('')
+      + '</div></div>'
+      + '</div>';
+
+    // ── PAGE 4 — Photos + Signatures ──
+    html += '<div class="pr-page">'
+      + '<div class="pr-head"><div style="width:60px"></div><div class="pr-head-title">บันทึกการเยี่ยมบ้าน</div><div class="pr-head-page">หน้า 4/4</div></div>'
+      + '<div style="text-align:center;margin:8px 0"><strong style="font-size:16px">ภาพถ่ายบ้านนักเรียนที่ได้รับการเยี่ยมบ้าน</strong></div>'
+      + '<div class="pr-row"><strong>ชื่อ - นามสกุลนักเรียน</strong> <span class="val">' + esc((s.prefix||'') + (s.first_name||'') + ' ' + (s.last_name||'')) + '</span></div>'
+      + '<div style="margin:4px 0"><strong>กรุณาระบุ ภาพถ่ายที่แนบมาคือ</strong></div>'
+      + '<div style="padding-left:14px;font-size:13px">'
+      + '<div>' + chk(phType, 'with_parents', 'บ้านที่อาศัยอยู่กับพ่อแม่ (เป็นเจ้าของ/เช่า)') + '</div>'
+      + '<div>' + chk(phType, 'with_relative', 'บ้านของญาติ/ผู้ปกครองที่ไม่ใช่ญาติ') + '</div>'
+      + '<div>' + chk(phType, 'dormitory', 'บ้านหรือที่พักประเภท วัด มูลนิธิ หอพัก โรงงาน อยู่กับนายจ้าง') + '</div>'
+      + '<div>' + chk(phType, 'with_school_sign', 'ภาพนักเรียนและป้ายชื่อโรงเรียน (กรณีถ่ายภาพบ้านไม่ได้)') + '</div>'
+      + '</div>'
+      + '<div style="margin:8px 0 4px"><strong>ความใกล้ชิดของนักเรียนกับครอบครัว</strong></div>'
+      + '<div class="pr-grid-2" style="padding-left:14px;font-size:12.5px">'
+      + '<div>' + chk(reportCats, 'warm_family', 'สภาพครอบครัวนักเรียนที่มีความอบอุ่น') + '</div>'
+      + '<div>' + chk(reportCats, 'broken_family', 'สภาพครอบครัวนักเรียนที่มีความแตกแยก') + '</div>'
+      + '<div>' + chk(reportCats, 'distant_family', 'สภาพครอบครัวนักเรียนที่มีความห่างเหิน') + '</div>'
+      + '<div>' + chk(reportCats, 'lives_with_both_parents', 'สภาพนักเรียนอาศัยอยู่กับบิดาและมารดา') + '</div>'
+      + '<div>' + chk(reportCats, 'lives_with_single_parent', 'สภาพนักเรียนอาศัยอยู่กับบิดาหรือมารดา') + '</div>'
+      + '<div>' + chk(reportCats, 'not_living_with_parents', 'สภาพนักเรียนที่ไม่ได้อาศัยอยู่กับบิดาและมารดา') + '</div>'
+      + '</div>'
+      + '<div style="margin:8px 0 4px"><strong>ความเสี่ยงของนักเรียน</strong></div>'
+      + '<div class="pr-risk-grid" style="padding-left:14px;font-size:12.5px">'
+      + '<div class="pr-risk-col">'
+      + '<div>' + chk(riskCats, 'economic', 'สภาพนักเรียนที่มีความเสี่ยงด้านเศรษฐกิจ') + '</div>'
+      + '<div>' + chk(riskCats, 'sexual_behavior', 'สภาพนักเรียนที่มีความเสี่ยงด้านพฤติกรรมทางเพศ') + '</div>'
+      + '<div>' + chk(riskCats, 'physical_health', 'สภาพนักเรียนที่มีความเสี่ยงด้านสุขภาพ เช่น อ้วน ผอม โรคประจำตัว') + '</div>'
+      + '<div>' + chk(riskCats, 'substance', 'สภาพนักเรียนที่มีความเสี่ยงด้านสารเสพติด') + '</div>'
+      + '</div>'
+      + '<div class="pr-risk-col">'
+      + '<div>' + chk(riskCats, 'safety', 'สภาพนักเรียนที่มีความเสี่ยงด้านสวัสดิภาพและความปลอดภัย เช่น การเดินทาง ที่อยู่อาศัย') + '</div>'
+      + '<div>' + chk(riskCats, 'mental_health', 'สภาพนักเรียนที่มีความเสี่ยงด้านสุขภาพจิต') + '</div>'
+      + '<div>' + chk(riskCats, 'violence', 'สภาพนักเรียนที่มีความเสี่ยงด้านความรุนแรง') + '</div>'
+      + '</div>'
+      + '</div>'
+      + '<div style="text-align:center;margin:8px 0 4px"><strong>รูปที่ 1 ภาพถ่ายสภาพบ้านนักเรียน</strong></div>'
+      + '<div class="pr-photo-house">' + (v.photo_house_outside ? '<img src="' + esc(v.photo_house_outside) + '">' : 'ภาพถ่ายภายนอกบ้าน (มีหลังคาและฝาบ้านด้วย)') + '</div>'
+      + '<div style="text-align:center;margin:8px 0 4px"><strong>รูปที่ 2 ภาพถ่ายภายในบ้านนักเรียน</strong></div>'
+      + '<div class="pr-photo-house">' + (v.photo_house_inside ? '<img src="' + esc(v.photo_house_inside) + '">' : 'ภาพถ่ายภายในบ้าน') + '</div>'
+      + '<div style="border:1px solid #333;padding:10px;margin-top:10px">'
+      + '<div style="text-align:center;margin-bottom:12px"><strong>ขอรับรองว่าข้อมูล และภาพถ่ายบ้านของนักเรียนเป็นความจริง</strong></div>'
+      + '<div style="display:flex;justify-content:space-around;align-items:flex-end;gap:15px">'
+      + '<div class="pr-sig">'
+      + (mapping && v.teacher_signature_name === mapping.teacher1_name && v.teacher_signature_image ? '<div class="pr-sig-img"><img src="' + esc(v.teacher_signature_image) + '" alt="ลายเซ็นครู"></div>' : '')
+      + '<div>(ลงชื่อ) ......................................................</div>'
+      + '<div>(' + esc((mapping ? mapping.teacher1_name : '') || v.teacher_signature_name || '......................................................') + ')</div>'
+      + '<div>ตำแหน่ง ' + (mapping ? 'ครูประจำชั้น' : esc(v.teacher_position || 'ครูประจำชั้น')) + '</div>'
+      + '</div>'
+      + (mapping && mapping.teacher2_name ? 
+          '<div class="pr-sig">'
+          + (v.teacher_signature_name === mapping.teacher2_name && v.teacher_signature_image ? '<div class="pr-sig-img"><img src="' + esc(v.teacher_signature_image) + '" alt="ลายเซ็นครู"></div>' : '')
+          + '<div>(ลงชื่อ) ......................................................</div>'
+          + '<div>(' + esc(mapping.teacher2_name) + ')</div>'
+          + '<div>ตำแหน่ง ครูประจำชั้น</div>'
+          + '</div>' : '')
+      + '</div>'
+      + '<div style="text-align:center;margin-top:15px;font-size:12px">'
+      + 'วันที่ ' + (v.date_signed ? '<strong>' + (new Date(v.date_signed)).getDate() + '</strong>' : '...........') + ' เดือน ' + (v.date_signed ? '<strong>' + TH.MONTHS[(new Date(v.date_signed)).getMonth()] + '</strong>' : '...........') + ' พ.ศ. ' + (v.date_signed ? '<strong>' + ((new Date(v.date_signed)).getFullYear() + 543) + '</strong>' : '...........')
+      + '</div>'
+      + '</div>'
+      + '</div>';
+
+    html += '</div>';
+    return html;
+  };
 })();
 </script>

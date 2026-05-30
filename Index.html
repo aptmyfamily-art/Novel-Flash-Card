@@ -5,11 +5,23 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <base target="_top">
   <title>Novel Flashcard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700;800&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
   <?!= include("Styles") ?>
 </head>
 <body>
+  <div id="boot-loader" class="boot-loader" aria-hidden="false">
+    <div class="bl-logo"><i class="bi bi-book-half"></i></div>
+    <div class="bl-name">Novel Flashcard</div>
+    <div class="bl-sub">Chinese Reading + Vocabulary Trainer</div>
+    <div class="bl-dots"><span></span><span></span><span></span></div>
+    <div class="bl-text" id="bl-text">กำลังเริ่มระบบ...</div>
+  </div>
+
   <header class="topbar">
-    <h1>Novel Flashcard</h1>
+    <h1><i class="bi bi-journal-text"></i> Novel Flashcard</h1>
     <div class="top-actions">
       <button id="btn-import-cedict" type="button">โหลด CEDICT</button>
       <div id="status">Ready</div>
@@ -45,6 +57,17 @@
       <div id="fav-list" class="fav-list"></div>
     </section>
   </main>
+
+  <div id="spinner-overlay" class="spinner-overlay" hidden>
+    <div class="qspin">
+      <div class="qspin-ring qspin-r1"></div>
+      <div class="qspin-ring qspin-r2"></div>
+      <div class="qspin-ring qspin-r3"></div>
+      <div class="qspin-pulse"></div>
+      <div class="qspin-core"><i class="bi bi-translate"></i></div>
+    </div>
+    <div class="qspin-msg" id="qspin-msg">กำลังประมวลผล...</div>
+  </div>
 
   <div id="popup" class="popup" hidden>
     <div><strong id="pv-word"></strong></div>

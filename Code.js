@@ -40,6 +40,8 @@ function api(req) {
         return _ok(Vocab_favoriteList_(payload.novel_id));
       case "vocab.lookup":
         return _ok(Vocab_lookup_(payload.word || ""));
+      case "cedict.import":
+        return _ok(Cedict_import_(payload.url));
       default:
         return _err("Unknown action: " + action);
     }
@@ -142,8 +144,17 @@ function Vocab_lookup_(word) {
 }
 
 function Cedict_lookup_(word) {
+  const local = Cedict_lookupLocal_(word);
+  if (local) return local;
+
   const url = "https://www.mdbg.net/chinese/dictionary?page=worddict&wdrst=0&wdqb=" + encodeURIComponent(word);
   const resp = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+  if (resp.getResponseCode() >= 400) {
+    return {
+      cedict_raw: "",
+      en_meaning: "CEDICT lookup failed."
+    };
+  }
   const html = resp.getContentText();
 
   // Pull a concise English gloss from search result html as pragmatic MVP parser.
@@ -163,10 +174,115 @@ function Cedict_lookup_(word) {
   };
 }
 
+function Cedict_lookupLocal_(word) {
+  const rows = DB_selectAll_("CEDICT");
+  if (!rows.length) return null;
+  const hit = rows.find(function (r) {
+    return String(r.simp) === String(word) || String(r.trad) === String(word);
+  });
+  if (!hit) return null;
+  return {
+    cedict_raw: [hit.trad, hit.simp, "[" + hit.pinyin + "]", "/" + hit.english + "/"].join(" "),
+    en_meaning: hit.english || ""
+  };
+}
+
+function Cedict_import_(url) {
+  const source = String(url || "").trim();
+  const out = source
+    ? Cedict_importFromTextDump_(source)
+    : Cedict_importFromYomitanGithub_();
+  Cedict_writeRows_(out.rows);
+  return { entries: out.rows.length, source: out.source };
+}
+
+function Cedict_importFromYomitanGithub_() {
+  const apiUrl = "https://api.github.com/repos/MarvNC/cc-cedict-yomitan/releases/latest";
+  const relResp = UrlFetchApp.fetch(apiUrl, { muteHttpExceptions: true });
+  if (relResp.getResponseCode() >= 400) {
+    throw new Error("Failed to load GitHub release metadata: HTTP " + relResp.getResponseCode());
+  }
+  const rel = JSON.parse(relResp.getContentText());
+  const assets = Array.isArray(rel.assets) ? rel.assets : [];
+  const zipAsset = assets.find(function (a) {
+    const n = String(a && a.name || "").toLowerCase();
+    return n.indexOf("cc-cedict") >= 0 && n.indexOf(".zip") >= 0;
+  });
+  if (!zipAsset || !zipAsset.browser_download_url) {
+    throw new Error("CC-CEDICT zip asset not found in latest release.");
+  }
+
+  const zipResp = UrlFetchApp.fetch(zipAsset.browser_download_url, { muteHttpExceptions: true });
+  if (zipResp.getResponseCode() >= 400) {
+    throw new Error("Failed to download release asset: HTTP " + zipResp.getResponseCode());
+  }
+  const files = Utilities.unzip(zipResp.getBlob());
+  const rows = [];
+  files.forEach(function (f) {
+    const name = String(f.getName() || "");
+    if (!/^term_bank_\d+\.json$/i.test(name)) return;
+    const arr = JSON.parse(f.getDataAsString("UTF-8"));
+    if (!Array.isArray(arr)) return;
+    arr.forEach(function (entry) {
+      if (!Array.isArray(entry) || !entry.length) return;
+      const simp = String(entry[0] || "");
+      const pinyin = String(entry[1] || "");
+      const gloss = Cedict_extractGloss_(entry);
+      if (!simp || !gloss) return;
+      rows.push(["", simp, pinyin, gloss]);
+    });
+  });
+  if (!rows.length) throw new Error("No entries parsed from Yomitan term_bank files.");
+  return { source: zipAsset.browser_download_url, rows: rows };
+}
+
+function Cedict_extractGloss_(entry) {
+  const defs = entry[5];
+  if (Array.isArray(defs)) return defs.join("; ");
+  if (typeof defs === "string") return defs;
+  return "";
+}
+
+function Cedict_importFromTextDump_(source) {
+  const resp = UrlFetchApp.fetch(source, { muteHttpExceptions: true });
+  if (resp.getResponseCode() >= 400) {
+    throw new Error("Failed to download CEDICT text dump: HTTP " + resp.getResponseCode());
+  }
+  let text = "";
+  const bytes = resp.getBlob().getBytes();
+  try {
+    text = Utilities.newBlob(Utilities.ungzip(bytes)).getDataAsString("UTF-8");
+  } catch (e) {
+    text = resp.getContentText();
+  }
+  const lines = text.split(/\r?\n/);
+  const rows = [];
+  const re = /^(\S+)\s+(\S+)\s+\[([^\]]+)\]\s+\/(.+)\/$/;
+  lines.forEach(function (ln) {
+    if (!ln || ln.charAt(0) === "#") return;
+    const m = ln.match(re);
+    if (!m) return;
+    rows.push([m[1], m[2], m[3], m[4]]);
+  });
+  if (!rows.length) throw new Error("No CEDICT entries parsed.");
+  return { source: source, rows: rows };
+}
+
+function Cedict_writeRows_(rows) {
+  const sh = DB_sheet_("CEDICT", SCHEMAS.CEDICT);
+  sh.clearContents();
+  sh.getRange(1, 1, 1, SCHEMAS.CEDICT.length).setValues([SCHEMAS.CEDICT]);
+  const chunk = 5000;
+  for (let i = 0; i < rows.length; i += chunk) {
+    const part = rows.slice(i, i + chunk);
+    sh.getRange(2 + i, 1, part.length, 4).setValues(part);
+  }
+}
+
 function Translate_en_to_th_(text) {
   try {
     return LanguageApp.translate(String(text || ""), "en", "th");
   } catch (e) {
-    return "แปลไทยไม่สำเร็จ: " + (e && e.message ? e.message : String(e));
+    return "Thai translation failed: " + (e && e.message ? e.message : String(e));
   }
 }

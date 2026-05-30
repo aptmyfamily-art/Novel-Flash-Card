@@ -1,0 +1,203 @@
+<script>
+  const state = {
+    novels: [],
+    episodes: [],
+    selectedNovelId: "",
+    selectedEpisodeId: "",
+    lookupCache: new Map(),
+    popupData: null
+  };
+
+  const $ = (id) => document.getElementById(id);
+
+  function api(action, payload) {
+    return new Promise((resolve, reject) => {
+      google.script.run
+        .withSuccessHandler((res) => {
+          if (!res || !res.ok) return reject(new Error(res && res.error ? res.error : "Unknown error"));
+          resolve(res.data);
+        })
+        .withFailureHandler((err) => reject(err))
+        .api({ action, payload: payload || {} });
+    });
+  }
+
+  function setStatus(text) {
+    $("status").textContent = text;
+  }
+
+  function isCjk(ch) {
+    return /[\u3400-\u9FFF]/.test(ch);
+  }
+
+  function tokenizeZh(text) {
+    return [...String(text || "")];
+  }
+
+  function renderReader(raw) {
+    const host = $("reader");
+    host.innerHTML = "";
+    tokenizeZh(raw).forEach((ch) => {
+      if (!isCjk(ch)) {
+        host.appendChild(document.createTextNode(ch));
+        return;
+      }
+      const span = document.createElement("span");
+      span.className = "zi";
+      span.textContent = ch;
+      span.dataset.word = ch;
+      host.appendChild(span);
+    });
+  }
+
+  function showPopup(x, y, data) {
+    state.popupData = data;
+    $("pv-word").textContent = data.word;
+    $("pv-en").textContent = "EN: " + (data.en_meaning || "-");
+    $("pv-th").textContent = "TH: " + (data.th_explain || "-");
+    $("pv-note").value = "";
+    const popup = $("popup");
+    popup.hidden = false;
+    popup.style.left = Math.min(window.innerWidth - 340, x + 12) + "px";
+    popup.style.top = Math.min(window.innerHeight - 180, y + 12) + "px";
+  }
+
+  function hidePopup() {
+    $("popup").hidden = true;
+  }
+
+  async function loadNovels() {
+    state.novels = await api("novel.list");
+    const sel = $("novel-select");
+    sel.innerHTML = "";
+    state.novels.forEach((n) => {
+      const opt = document.createElement("option");
+      opt.value = n.id;
+      opt.textContent = n.title;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadEpisodes() {
+    state.episodes = await api("episode.list", { novel_id: state.selectedNovelId });
+    const sel = $("episode-select");
+    sel.innerHTML = "";
+    state.episodes.forEach((e) => {
+      const opt = document.createElement("option");
+      opt.value = e.id;
+      opt.textContent = "ตอน " + e.episode_no + ": " + e.title;
+      sel.appendChild(opt);
+    });
+  }
+
+  async function loadFavorites() {
+    const rows = await api("vocab.favorite.list", { novel_id: state.selectedNovelId });
+    const box = $("fav-list");
+    box.innerHTML = "";
+    rows.forEach((r) => {
+      const div = document.createElement("div");
+      div.className = "fav-item";
+      div.textContent = r.word + " | " + r.th_explain + (r.note ? " | " + r.note : "");
+      box.appendChild(div);
+    });
+  }
+
+  async function onHoverWord(ev) {
+    const el = ev.target.closest(".zi");
+    if (!el) return;
+    const word = el.dataset.word;
+    if (!word) return;
+    setStatus("Looking up " + word + " ...");
+    if (!state.lookupCache.has(word)) {
+      const data = await api("vocab.lookup", { word });
+      state.lookupCache.set(word, data);
+    }
+    showPopup(ev.clientX, ev.clientY, state.lookupCache.get(word));
+    setStatus("Ready");
+  }
+
+  function wireEvents() {
+    $("btn-import-cedict").addEventListener("click", async () => {
+      try {
+        setStatus("Importing CEDICT...");
+        const res = await api("cedict.import", {});
+        setStatus("CEDICT ready: " + res.entries + " entries");
+      } catch (err) {
+        setStatus("CEDICT import error: " + err.message);
+      }
+    });
+
+    $("novel-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      await api("novel.upsert", {
+        title: $("novel-title").value,
+        description: $("novel-description").value
+      });
+      $("novel-title").value = "";
+      $("novel-description").value = "";
+      await loadNovels();
+    });
+
+    $("novel-select").addEventListener("change", async (e) => {
+      state.selectedNovelId = e.target.value;
+      await loadEpisodes();
+      await loadFavorites();
+    });
+
+    $("episode-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!state.selectedNovelId) {
+        alert("กรุณาเลือกนิยายก่อน");
+        return;
+      }
+      await api("episode.upsert", {
+        novel_id: state.selectedNovelId,
+        episode_no: Number($("episode-no").value),
+        title: $("episode-title").value,
+        content: $("episode-content").value
+      });
+      $("episode-no").value = "";
+      $("episode-title").value = "";
+      $("episode-content").value = "";
+      await loadEpisodes();
+    });
+
+    $("episode-select").addEventListener("change", async (e) => {
+      state.selectedEpisodeId = e.target.value;
+      const ep = state.episodes.find((x) => x.id === state.selectedEpisodeId);
+      if (ep) renderReader(ep.content);
+    });
+
+    $("reader").addEventListener("mouseover", (ev) => {
+      onHoverWord(ev).catch((err) => setStatus("Error: " + err.message));
+    });
+
+    document.addEventListener("click", (ev) => {
+      if (!ev.target.closest("#popup") && !ev.target.closest(".zi")) hidePopup();
+    });
+
+    $("pv-save").addEventListener("click", async () => {
+      if (!state.popupData) return;
+      await api("vocab.favorite.add", {
+        word: state.popupData.word,
+        novel_id: state.selectedNovelId,
+        episode_id: state.selectedEpisodeId,
+        cedict_raw: state.popupData.cedict_raw,
+        en_meaning: state.popupData.en_meaning,
+        th_explain: state.popupData.th_explain,
+        note: $("pv-note").value
+      });
+      await loadFavorites();
+      hidePopup();
+    });
+  }
+
+  async function boot() {
+    setStatus("Booting...");
+    wireEvents();
+    await loadNovels();
+    setStatus("Ready");
+  }
+
+  boot().catch((err) => setStatus("Boot error: " + err.message));
+</script>

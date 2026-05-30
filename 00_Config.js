@@ -9,7 +9,8 @@ const SHEETS = Object.freeze({
   NOVELS: "Novels",
   EPISODES: "Episodes",
   VOCAB: "VocabFavorites",
-  LOOKUP_LOG: "LookupLog"
+  LOOKUP_LOG: "LookupLog",
+  CEDICT: "CEDICT"
 });
 
 const SCHEMAS = Object.freeze({
@@ -26,7 +27,8 @@ const SCHEMAS = Object.freeze({
     "note",
     "created_at"
   ],
-  LookupLog: ["id", "word", "cedict_raw", "en_meaning", "th_explain", "created_at"]
+  LookupLog: ["id", "word", "cedict_raw", "en_meaning", "th_explain", "created_at"],
+  CEDICT: ["trad", "simp", "pinyin", "english"]
 });
 
 function cfg_now_() {

@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_top">
+  <title>Novel Flashcard</title>
+  <?!= include("Styles") ?>
+</head>
+<body>
+  <header class="topbar">
+    <h1>Novel Flashcard</h1>
+    <div class="top-actions">
+      <button id="btn-import-cedict" type="button">โหลด CEDICT</button>
+      <div id="status">Ready</div>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="panel">
+      <h2>นิยาย</h2>
+      <form id="novel-form" class="stack">
+        <input id="novel-title" placeholder="ชื่อนิยาย" required>
+        <textarea id="novel-description" placeholder="คำอธิบาย"></textarea>
+        <button type="submit">เพิ่มนิยาย</button>
+      </form>
+      <select id="novel-select" size="8"></select>
+    </section>
+
+    <section class="panel">
+      <h2>ตอน</h2>
+      <form id="episode-form" class="stack">
+        <input id="episode-no" type="number" min="1" placeholder="ตอนที่" required>
+        <input id="episode-title" placeholder="ชื่อตอน" required>
+        <textarea id="episode-content" placeholder="วางเนื้อหาภาษาจีนที่นี่" required></textarea>
+        <button type="submit">เพิ่มตอน</button>
+      </form>
+      <select id="episode-select" size="8"></select>
+    </section>
+
+    <section class="panel reader-panel">
+      <h2>Reader</h2>
+      <div id="reader" class="reader"></div>
+      <h3>คำที่สนใจ</h3>
+      <div id="fav-list" class="fav-list"></div>
+    </section>
+  </main>
+
+  <div id="popup" class="popup" hidden>
+    <div><strong id="pv-word"></strong></div>
+    <div id="pv-en"></div>
+    <div id="pv-th"></div>
+    <div class="row">
+      <input id="pv-note" placeholder="โน้ต">
+      <button id="pv-save">บันทึกคำนี้</button>
+    </div>
+  </div>
+
+  <?!= include("Scripts") ?>
+</body>
+</html>

@@ -153,21 +153,39 @@
     }
   };
 
-  document.addEventListener('click', function (e) {
-    var close = e.target.closest && e.target.closest('[data-modal-close]');
-    if (close) Modal.close();
-  });
+  if (!window.__nvfsClickWired) {
+    window.__nvfsClickWired = true;
+    document.addEventListener('click', function (e) {
+      var close = e.target.closest && e.target.closest('[data-modal-close]');
+      if (close) { Modal.close(); return; }
 
-  document.addEventListener('click', function (e) {
-    var link = e.target.closest && e.target.closest('a[href^="#/"]');
-    if (!link) return;
-    var hash = link.getAttribute('href');
-    if (!hash) return;
-    e.preventDefault();
-    e.stopPropagation();
-    if (location.hash === hash) dispatch();
-    else location.hash = hash;
-  });
+      var actEl = e.target.closest && e.target.closest('[data-action]');
+      if (actEl) {
+        var act = actEl.getAttribute('data-action');
+        if (act === 'logout') { e.preventDefault(); doLogout(); return; }
+        if (act === 'open-sidebar') { e.preventDefault(); openSidebar(); return; }
+        if (act === 'close-sidebar') { e.preventDefault(); closeSidebar(); return; }
+        if (act === 'toggle-profile') { e.preventDefault(); toggleProfilePopover(); return; }
+      }
+
+      var pp = $('.nav-profile-popover');
+      if (pp && !e.target.closest('.nav-profile-popover') && !e.target.closest('.nav-profile')) pp.remove();
+
+      var a = e.target.closest && e.target.closest('a[href]');
+      if (a) {
+        var href = a.getAttribute('href');
+        if (href && href.charAt(0) === '#') {
+          if (href === '#') return;
+          if (a.target && a.target !== '_top' && a.target !== '_self') return;
+          e.preventDefault();
+          if (window.innerWidth <= 1024) closeSidebar();
+          if (href === location.hash) dispatch();
+          else location.hash = href;
+        }
+      }
+    }, true);
+    window.addEventListener('hashchange', dispatch);
+  }
 
   function saveSession(token, user, caps) {
     Store.token = token || '';
@@ -309,7 +327,7 @@
             return '<a class="sb-link" href="' + item.hash + '"><i class="bi ' + item.icon + '"></i> ' + esc(item.label) + '</a>';
           }).join('') + '</div>';
         }).join('')
-      + '<div class="sb-group"><div class="sb-group-head">Session</div><a class="sb-link is-logout" href="#" data-action="logout"><i class="bi bi-box-arrow-right"></i> ออกจากระบบ</a></div>'
+      + '<div class="sb-group"><div class="sb-group-head">Session</div><a class="sb-link is-logout" href="#" data-action="logout"><i class="bi bi-box-arrow-right"></i> Logout</a></div>'
       + '</nav></aside>';
 
     var navbar = '<header class="navbar" id="navbar"><button class="nav-burger" data-action="open-sidebar"><i class="bi bi-list"></i></button>'
@@ -327,7 +345,6 @@
 
     host.innerHTML = '<div class="shell">' + sidebar + '<div class="main-area">' + navbar + '<div class="page-wrap" id="page">' + skeletonDashboard() + '</div>' + footer + '</div></div>'
       + '<div class="sidebar-backdrop" id="sidebar-backdrop" data-action="close-sidebar"></div>' + bottomNav;
-    bindShellEvents();
     if (!location.hash || location.hash === '#') location.hash = '#/dashboard';
     else dispatch();
   }
@@ -336,32 +353,43 @@
     return '<a class="bn-item" href="' + hash + '"' + (action ? ' data-action="' + action + '"' : '') + '><i class="bi ' + icon + '"></i><span>' + esc(label) + '</span></a>';
   }
 
-  function bindShellEvents() {
-    document.body.onclick = function (e) {
-      var el = e.target.closest && e.target.closest('[data-action]');
-      if (!el) return;
-      var action = el.getAttribute('data-action');
-      if (action === 'open-sidebar') {
-        e.preventDefault();
-        $('#sidebar').classList.add('is-open');
-        $('#sidebar-backdrop').classList.add('is-open');
-      }
-      if (action === 'close-sidebar') {
-        $('#sidebar').classList.remove('is-open');
-        $('#sidebar-backdrop').classList.remove('is-open');
-      }
-      if (action === 'toggle-profile') location.hash = '#/profile';
-      if (action === 'logout') {
-        e.preventDefault();
-        confirmModal({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบหรือไม่' }).then(function (ok) {
-          if (!ok) return;
-          call('auth.logout', {}).catch(function () {});
-          clearSession();
-          history.replaceState(null, '', location.pathname + location.search);
-          renderLogin();
-        });
-      }
-    };
+  function openSidebar() {
+    var s = $('#sidebar'); if (s) s.classList.add('is-open');
+    var b = $('#sidebar-backdrop'); if (b) b.classList.add('is-open');
+  }
+
+  function closeSidebar() {
+    var s = $('#sidebar'); if (s) s.classList.remove('is-open');
+    var b = $('#sidebar-backdrop'); if (b) b.classList.remove('is-open');
+  }
+
+  function toggleProfilePopover() {
+    var existing = $('.nav-profile-popover');
+    if (existing) { existing.remove(); return; }
+    var u = Store.user || {};
+    var pop = document.createElement('div');
+    pop.className = 'nav-profile-popover';
+    pop.innerHTML = '<div class="npp-head">'
+      + '<div class="nav-profile-avatar">' + esc((u.full_name || '?').charAt(0)) + '</div>'
+      + '<div><div class="npp-name">' + esc(u.full_name || '-') + '</div><div class="npp-email">' + esc(u.email || u.username || '') + '</div>'
+      + '<span class="role-chip role-chip-' + esc(u.role || '') + '"><i class="bi bi-shield-check"></i> ' + esc((Store.boot.roles && Store.boot.roles[u.role]) || u.role || '') + '</span></div></div>'
+      + '<a class="npp-item" href="#/profile"><i class="bi bi-person-circle"></i> Profile</a>'
+      + '<a class="npp-item" href="#/change-password"><i class="bi bi-key-fill"></i> Change Password</a>'
+      + '<div style="border-top:1px solid var(--line);margin:6px 0"></div>'
+      + '<a class="npp-item is-danger" href="#" data-action="logout"><i class="bi bi-box-arrow-right"></i> Logout</a>';
+    document.body.appendChild(pop);
+  }
+
+  function doLogout() {
+    confirmModal({ title: 'ออกจากระบบ', message: 'ต้องการออกจากระบบหรือไม่' }).then(function (ok) {
+      if (!ok) return;
+      call('auth.logout', {}).catch(function () {});
+      clearSession();
+      history.replaceState(null, '', location.pathname + location.search);
+      var pp = $('.nav-profile-popover'); if (pp) pp.remove();
+      closeSidebar();
+      renderLogin();
+    });
   }
 
   function dispatch() {
@@ -378,8 +406,7 @@
     if (icon) icon.innerHTML = '<i class="bi ' + meta.icon + '"></i>';
     $$('.sb-link').forEach(function (link) { link.classList.toggle('is-active', link.getAttribute('href') === hash); });
     $$('.bn-item').forEach(function (link) { link.classList.toggle('is-active', link.getAttribute('href') === hash); });
-    if ($('#sidebar')) $('#sidebar').classList.remove('is-open');
-    if ($('#sidebar-backdrop')) $('#sidebar-backdrop').classList.remove('is-open');
+    closeSidebar();
     handler(rawHash);
   }
 
@@ -435,7 +462,6 @@
       if (loader) loader.style.display = 'none';
       if (Store.user) renderShell();
       else renderLogin();
-      window.addEventListener('hashchange', dispatch);
     }).catch(function (e) {
       if (loader) {
         loader.style.display = 'flex';
@@ -467,6 +493,8 @@
     dispatch: dispatch,
     renderShell: renderShell,
     renderLogin: renderLogin,
+    toggleProfilePopover: toggleProfilePopover,
+    doLogout: doLogout,
     $: $,
     $$: $$,
     esc: esc

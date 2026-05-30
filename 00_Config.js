@@ -1,6 +1,6 @@
 /**
  * ═══════════════════════════════════════════════════════════════
- *  SHVR · ระบบบันทึกการเยี่ยมบ้านนักเรียน (Student Home Visit Recording)
+ *  NOVEL · ระบบคลังคำศัพท์นิยาย
  *  File:        00_Config.gs — ค่าคงที่ + Schemas + RBAC + helpers
  *  Version:     1.0.0
  *  Last Update: 2026-05-12
@@ -23,7 +23,8 @@ const APP = Object.freeze({
     NAME: 'ครูวิรัตน์ หาดคำ',
     URL: 'https://www.kruwirat.com',
     LOGO: 'https://mts-ssk3.com/uploads/team/team_1771053860_6990232440dc8.png'
-  })
+  }),
+  USE_MOCK_DATA: true
 });
 
 const SHEETS = Object.freeze({

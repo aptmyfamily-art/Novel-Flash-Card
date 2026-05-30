@@ -34,10 +34,10 @@
     return html;
   }
 
-  function renderImportWorkspace(summary, heading, standalone) {
+  function renderImportWorkspace(summary, heading) {
     var html = pageHero(
       heading,
-      'แกนระบบพร้อมใช้งานแล้ว เหลือเฉพาะงาน import และจัดการข้อมูลกลาง',
+      'นำเข้า zip ไปเก็บบน Drive แล้วค่อยดึงลง sheet ทีละช่วง',
       'bi-box-arrow-in-down',
       [
         { val: formatNum(summary.total_entries || 0), lbl: 'ศัพท์ทั้งหมด', icon: 'bi-journal-text', color1: '#0f766e', color2: '#14b8a6' },
@@ -48,7 +48,7 @@
 
     html += '<div class="toolbar">'
       + '<div class="hero-pill" style="margin:0"><i class="bi bi-shield-check"></i> auth + users + settings + audit ยังอยู่ครบ</div>'
-      + (hasCap('file.manage') ? '<button type="button" class="btn btn-primary" id="' + (standalone ? 'import-open-page' : 'import-open-dashboard') + '"><i class="bi bi-upload"></i> นำเข้าพจนานุกรม</button>' : '')
+      + (hasCap('file.manage') ? '<button type="button" class="btn btn-primary" id="import-open"><i class="bi bi-upload"></i> นำเข้าพจนานุกรม</button>' : '')
       + '</div>';
 
     html += '<div class="card"><h3 class="card-title"><i class="bi bi-lightning-charge-fill"></i> เมนูด่วน</h3>'
@@ -65,9 +65,9 @@
 
     html += '<div class="card"><h3 class="card-title"><i class="bi bi-info-circle-fill"></i> โครงระบบปัจจุบัน</h3>'
       + '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px">'
-      + statCard('เหลือไว้', 'Core UI shell, auth, users, settings, audit')
+      + statCard('flow import', 'upload zip -> import_start -> import_tick -> sheet')
       + statCard('ตัดออก', 'students, visits, reports เชิงเยี่ยมบ้าน, teacher mappings')
-      + statCard('ระบบแรก', 'Yomitan / CC-CEDICT import')
+      + statCard('สถานะ', 'รองรับ progress bar ระหว่าง import แล้ว')
       + '</div></div>';
 
     return html;
@@ -84,14 +84,11 @@
     var percent = Number(progress.percent || 0);
     if (!isFinite(percent)) percent = 0;
     percent = Math.max(0, Math.min(100, percent));
-    var processed = Number(progress.processed || 0);
-    var total = Number(progress.total || 0);
-    var inserted = Number(progress.inserted || 0);
     return '<div style="display:flex;flex-direction:column;gap:12px">'
-      + '<div style="font-weight:700;font-size:14px">' + esc(progress.message || 'กำลังนำเข้าข้อมูล') + '</div>'
+      + '<div id="dict-import-progress-status" style="font-weight:700;font-size:14px">' + esc(progress.message || 'กำลังนำเข้าข้อมูล') + '</div>'
       + '<div style="height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div id="dict-import-progress-fill" style="height:100%;width:' + percent + '%;background:linear-gradient(90deg,#0f766e,#14b8a6);transition:width .25s ease"></div></div>'
-      + '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--ink-muted)"><span id="dict-import-progress-label">' + percent + '%</span><span id="dict-import-progress-count">' + formatNum(processed) + ' / ' + formatNum(total) + '</span></div>'
-      + '<div style="font-size:12px;color:var(--ink-muted)" id="dict-import-progress-meta">นำเข้าแล้ว ' + formatNum(inserted) + ' รายการ' + (progress.current_file ? ' · ' + esc(progress.current_file) : '') + '</div>'
+      + '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--ink-muted)"><span id="dict-import-progress-label">' + percent + '%</span><span id="dict-import-progress-count">' + formatNum(progress.processed || 0) + ' / ' + formatNum(progress.total || 0) + '</span></div>'
+      + '<div style="font-size:12px;color:var(--ink-muted)" id="dict-import-progress-meta">นำเข้าแล้ว ' + formatNum(progress.inserted || 0) + ' รายการ' + (progress.current_file ? ' · ' + esc(progress.current_file) : '') + '</div>'
       + '</div>';
   }
 
@@ -108,6 +105,31 @@
     if (count) count.textContent = formatNum(progress.processed || 0) + ' / ' + formatNum(progress.total || 0);
     if (meta) meta.textContent = 'นำเข้าแล้ว ' + formatNum(progress.inserted || 0) + ' รายการ' + (progress.current_file ? ' · ' + progress.current_file : '');
     if (status) status.textContent = progress.message || 'กำลังนำเข้าข้อมูล';
+  }
+
+  function runImportPump(jobId) {
+    function pump() {
+      call('dictionary.import_tick', { job_id: jobId, chunk_size: 800 }, 120000).then(function (progress) {
+        updateImportProgressUI(progress);
+        if (progress.status === 'done') {
+          setTimeout(function () {
+            Modal.close();
+            alertSuccess('นำเข้าสำเร็จ', 'เพิ่มข้อมูล ' + formatNum(progress.inserted || 0) + ' รายการ');
+            if (location.hash === '#/import') Routes['#/import']();
+            else Routes['#/dashboard']();
+          }, 350);
+          return;
+        }
+        if (progress.status === 'error') {
+          alertError('นำเข้าไม่สำเร็จ', progress.message || 'เกิดข้อผิดพลาดระหว่าง import');
+          return;
+        }
+        setTimeout(pump, 500);
+      }).catch(function (err) {
+        alertError('นำเข้าไม่สำเร็จ', err.message);
+      });
+    }
+    setTimeout(pump, 300);
   }
 
   function openDictionaryImportModal() {
@@ -133,6 +155,7 @@
             e.preventDefault();
             e.stopPropagation();
           }
+
           var form = $('#dict-import-form');
           var file = form && form.file && form.file.files ? form.file.files[0] : null;
           if (!file) {
@@ -141,80 +164,56 @@
           }
 
           var data = formToObj(form);
-          var jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-          var reader = new FileReader();
-          Spinner.show('กำลังอ่านไฟล์พจนานุกรม...');
-          reader.onload = function () {
-            Spinner.hide();
-            Modal.open({
-              title: 'กำลังนำเข้าพจนานุกรม',
-              html: '<div id="dict-import-progress-status" style="font-weight:700;font-size:14px;margin-bottom:12px">กำลังส่งข้อมูลไป backend</div>' + renderImportProgress({
-                percent: 2,
-                processed: 0,
-                total: 0,
-                inserted: 0,
-                message: 'กำลังส่งข้อมูลไป backend'
-              }),
-              footer: '<button type="button" class="btn btn-ghost" disabled>กรุณารอจนกว่างานจะเสร็จ</button>'
+          Modal.open({
+            title: 'กำลังนำเข้าพจนานุกรม',
+            html: renderImportProgress({
+              percent: 2,
+              processed: 0,
+              total: 0,
+              inserted: 0,
+              message: 'กำลังอัปโหลดไฟล์ไป Drive'
+            }),
+            footer: '<button type="button" class="btn btn-ghost" disabled>กรุณารอจนกว่างานจะเสร็จ</button>'
+          });
+
+          window.uploadFile(file, 'imports').then(function (upload) {
+            updateImportProgressUI({
+              percent: 6,
+              processed: 0,
+              total: 0,
+              inserted: 0,
+              current_file: file.name,
+              message: 'อัปโหลดเสร็จแล้ว กำลังสร้าง job import'
             });
 
-            var poller = setInterval(function () {
-              call('dictionary.import_progress', { job_id: jobId }, 10000).then(function (progress) {
-                updateImportProgressUI(progress);
-              }).catch(function () {});
-            }, 1200);
-
-            call('dictionary.import_yomitan', {
-              job_id: jobId,
-              name: file.name,
-              data: reader.result,
+            call('dictionary.import_start', {
+              file_id: upload.id,
+              name: upload.name || file.name,
               title: data.title || '',
               replace_existing: !!data.replace_existing
-            }, 330000).then(function (result) {
-              clearInterval(poller);
-              updateImportProgressUI({
-                percent: 100,
-                processed: result.inserted || 0,
-                total: result.inserted || 0,
-                inserted: result.inserted || 0,
-                current_file: '',
-                message: 'นำเข้าสำเร็จ'
-              });
-              Spinner.hide();
-              setTimeout(function () {
-                Modal.close();
-                alertSuccess('นำเข้าสำเร็จ', 'เพิ่มข้อมูล ' + formatNum(result.inserted || 0) + ' รายการ');
-                if (location.hash === '#/import') Routes['#/import']();
-                else Routes['#/dashboard']();
-              }, 350);
-            }).catch(function (e) {
-              clearInterval(poller);
-              Spinner.hide();
-              alertError('นำเข้าไม่สำเร็จ', e.message);
+            }, 120000).then(function (job) {
+              updateImportProgressUI(job);
+              runImportPump(job.job_id);
+            }).catch(function (err) {
+              alertError('เริ่ม import ไม่สำเร็จ', err.message);
             });
-          };
-          reader.onerror = function () {
-            Spinner.hide();
-            alertError('อ่านไฟล์ไม่สำเร็จ', 'เบราว์เซอร์ไม่สามารถอ่านไฟล์ที่เลือกได้');
-          };
-          reader.readAsDataURL(file);
+          }).catch(function (err) {
+            alertError('อัปโหลดไฟล์ไม่สำเร็จ', err.message);
+          });
         });
       }
     });
   }
 
   function wireImportButtons() {
-    ['#import-open-dashboard', '#import-open-page'].forEach(function (sel) {
-      var btn = $(sel);
-      if (btn) {
-        btn.addEventListener('click', function (e) {
-          if (e) {
-            e.preventDefault();
-            e.stopPropagation();
-          }
-          openDictionaryImportModal();
-        });
+    var btn = $('#import-open');
+    if (!btn) return;
+    btn.addEventListener('click', function (e) {
+      if (e) {
+        e.preventDefault();
+        e.stopPropagation();
       }
+      openDictionaryImportModal();
     });
   }
 
@@ -223,7 +222,7 @@
     page.innerHTML = skeletonDashboard();
     call('dictionary.summary', {}).then(function (summary) {
       if (!$('#page')) return;
-      $('#page').innerHTML = renderImportWorkspace(summary, 'Core Dashboard', false);
+      $('#page').innerHTML = renderImportWorkspace(summary, 'Core Dashboard');
       wireImportButtons();
     }).catch(function (e) {
       $('#page').innerHTML = '<div class="card">โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + '</div>';
@@ -235,7 +234,7 @@
     page.innerHTML = skeletonDashboard();
     call('dictionary.summary', {}).then(function (summary) {
       if (!$('#page')) return;
-      $('#page').innerHTML = renderImportWorkspace(summary, 'Import Dictionary', true);
+      $('#page').innerHTML = renderImportWorkspace(summary, 'Import Dictionary');
       wireImportButtons();
     }).catch(function (e) {
       $('#page').innerHTML = '<div class="card">โหลดข้อมูลไม่สำเร็จ: ' + esc(e.message) + '</div>';
@@ -251,7 +250,7 @@
         { val: formatNum(r.total), lbl: 'ผู้ใช้ทั้งหมด', icon: 'bi-people-fill', color1: '#1d4ed8', color2: '#60a5fa' }
       ]);
       html += '<div class="toolbar"><div style="flex:1"></div>'
-        + '<button class="btn btn-primary" id="usr-add"><i class="bi bi-plus-lg"></i> เพิ่มผู้ใช้</button></div>';
+        + '<button type="button" class="btn btn-primary" id="usr-add"><i class="bi bi-plus-lg"></i> เพิ่มผู้ใช้</button></div>';
       html += '<div class="card" style="padding:0;overflow:hidden"><div style="overflow-x:auto"><table class="data-table"><thead>'
         + '<tr><th>Username</th><th>ชื่อ</th><th>บทบาท</th><th>อีเมล</th><th>สถานะ</th><th>จัดการ</th></tr></thead><tbody>';
       r.items.forEach(function (u) {
@@ -260,8 +259,8 @@
           + '<td>' + roleChip(u.role) + '</td>'
           + '<td>' + esc(u.email || '-') + '</td>'
           + '<td>' + (u.is_active ? '<span class="badge b-approved">เปิดใช้งาน</span>' : '<span class="badge b-draft">ปิดใช้งาน</span>') + '</td>'
-          + '<td><button class="btn btn-ghost btn-sm" data-usr-edit="' + esc(u.id) + '"><i class="bi bi-pencil"></i></button> '
-          + '<button class="btn btn-ghost btn-sm" data-usr-toggle="' + esc(u.id) + '"><i class="bi bi-power"></i></button></td></tr>';
+          + '<td><button type="button" class="btn btn-ghost btn-sm" data-usr-edit="' + esc(u.id) + '"><i class="bi bi-pencil"></i></button> '
+          + '<button type="button" class="btn btn-ghost btn-sm" data-usr-toggle="' + esc(u.id) + '"><i class="bi bi-power"></i></button></td></tr>';
       });
       html += '</tbody></table></div></div>';
       $('#page').innerHTML = html;
@@ -312,7 +311,7 @@
       title: isNew ? 'เพิ่มผู้ใช้' : 'แก้ไข ' + (u.username || ''),
       html: html,
       large: true,
-      footer: '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button><button class="btn btn-primary" id="usr-save"><i class="bi bi-check-lg"></i> บันทึก</button>',
+      footer: '<button type="button" class="btn btn-ghost" data-modal-close>ยกเลิก</button><button type="button" class="btn btn-primary" id="usr-save"><i class="bi bi-check-lg"></i> บันทึก</button>',
       onOpen: function () {
         $('#usr-save').addEventListener('click', function () {
           var data = formToObj($('#usr-form'));
@@ -348,7 +347,7 @@
         + field('Google Drive Root Folder ID', '<input class="input" name="drive_root_id" value="' + esc(settings.drive_root_id || '') + '" placeholder="เว้นว่างเพื่อใช้โฟลเดอร์ preview อัตโนมัติ">')
         + field('แสดงบัญชี demo', '<select class="select" name="show_demo_users"><option value="yes"' + (settings.show_demo_users === 'yes' ? ' selected' : '') + '>เปิด</option><option value="no"' + (settings.show_demo_users === 'no' ? ' selected' : '') + '>ปิด</option></select>')
         + '</form>'
-        + '<div style="margin-top:16px;text-align:right"><button class="btn btn-primary" id="set-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
+        + '<div style="margin-top:16px;text-align:right"><button type="button" class="btn btn-primary" id="set-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
         + '</div>';
       $('#page').innerHTML = html;
       $('#set-save').addEventListener('click', function () {
@@ -378,7 +377,7 @@
       + '</div>'
       + field('ตำแหน่ง', '<input class="input" name="position" value="' + esc(u.position || '') + '">')
       + '</form>'
-      + '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end"><a class="btn btn-ghost" href="#/change-password"><i class="bi bi-key"></i> เปลี่ยนรหัสผ่าน</a><button class="btn btn-primary" id="prof-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
+      + '<div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end"><a class="btn btn-ghost" href="#/change-password"><i class="bi bi-key"></i> เปลี่ยนรหัสผ่าน</a><button type="button" class="btn btn-primary" id="prof-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
       + '</div>';
     $('#page').innerHTML = html;
     $('#prof-save').addEventListener('click', function () {
@@ -403,7 +402,7 @@
       + field('รหัสผ่านใหม่', '<input class="input" type="password" name="next" required minlength="6">')
       + field('ยืนยันรหัสผ่านใหม่', '<input class="input" type="password" name="confirm" required minlength="6">')
       + '</form>'
-      + '<div style="margin-top:16px;text-align:right"><button class="btn btn-primary" id="pwd-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
+      + '<div style="margin-top:16px;text-align:right"><button type="button" class="btn btn-primary" id="pwd-save"><i class="bi bi-check-lg"></i> บันทึก</button></div>'
       + '</div>';
     $('#page').innerHTML = html;
     $('#pwd-save').addEventListener('click', function () {

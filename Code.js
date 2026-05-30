@@ -45,6 +45,8 @@ function api(req) {
       case 'file.upload': return _ok(Files_upload(user, payload));
 
       case 'dictionary.summary': return _ok(Dictionary_summary(user, payload));
+      case 'dictionary.import_start': return _ok(Dictionary_import_start(user, payload));
+      case 'dictionary.import_tick': return _ok(Dictionary_import_tick(user, payload));
       case 'dictionary.import_progress': return _ok(Dictionary_import_progress(user, payload));
       case 'dictionary.import_yomitan': return _ok(Dictionary_import_yomitan(user, payload));
 

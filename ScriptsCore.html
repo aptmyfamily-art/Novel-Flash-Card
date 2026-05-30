@@ -258,7 +258,7 @@
       + '</form>'
       + (String(settings.show_demo_users || 'yes').toLowerCase() === 'yes' ? demoCardsHtml() : '')
       + '</div></div>'
-      + '<div class="login-footer"><div class="lf-copy">' + esc(app.name || 'NVFS') + ' v' + esc(app.version || '1.0.0') + '</div>'
+      + '<div class="login-footer"><div class="lf-copy">' + esc(app.name || 'NVFS') + ' v' + esc(app.version || '1.0.0') + ' <strong style="color:#fbbf24">DEPLOY PROBE 817094d</strong></div>'
       + '<div class="lf-dev"><a href="' + esc(dev.URL || '#') + '" target="_blank" rel="noopener noreferrer" class="lf-dev-link"><img class="lf-dev-logo dev-logo-img" src="' + esc(dev.LOGO || '') + '" alt=""></a></div></div></div>';
     host.innerHTML = html;
 
@@ -332,9 +332,9 @@
 
     var navbar = '<header class="navbar" id="navbar"><button class="nav-burger" data-action="open-sidebar"><i class="bi bi-list"></i></button>'
       + '<div class="nav-page-card" id="nav-page-icon"><i class="bi bi-grid-fill"></i></div><div><div class="nav-page-title" id="nav-page-title">-</div><div class="nav-page-sub" id="nav-page-sub">-</div></div>'
-      + '<div style="margin-left:auto" class="nav-profile" data-action="toggle-profile"><div class="nav-profile-avatar">' + esc((u.full_name || '?').charAt(0)) + '</div><div class="nav-profile-name">' + esc((u.full_name || '').split(' ')[0] || u.username || '') + '</div></div></header>';
+      + '<div style="margin-left:auto;display:flex;align-items:center;gap:10px"><div style="font-size:11px;font-weight:800;color:#b45309;background:#fef3c7;border:1px solid #f59e0b;border-radius:999px;padding:6px 10px">DEPLOY PROBE 817094d</div><div class="nav-profile" data-action="toggle-profile"><div class="nav-profile-avatar">' + esc((u.full_name || '?').charAt(0)) + '</div><div class="nav-profile-name">' + esc((u.full_name || '').split(' ')[0] || u.username || '') + '</div></div></div></header>';
 
-    var footer = '<footer class="app-footer"><div>' + esc(Store.boot.app.name || 'NVFS') + ' <span class="af-version">v' + esc(Store.boot.app.version || '1.0.0') + '</span></div></footer>';
+    var footer = '<footer class="app-footer"><div>' + esc(Store.boot.app.name || 'NVFS') + ' <span class="af-version">v' + esc(Store.boot.app.version || '1.0.0') + '</span> <strong style="color:#b45309">DEPLOY PROBE 817094d</strong></div></footer>';
     var bottomNav = '<nav class="bottom-nav" id="bottom-nav">'
       + bnItem('#/dashboard', 'bi-grid-fill', 'Dashboard')
       + bnItem('#/import', 'bi-box-arrow-in-down', 'Import')

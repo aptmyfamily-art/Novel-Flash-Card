@@ -10,6 +10,15 @@
  */
 
 function DB_ss_() { return SpreadsheetApp.getActiveSpreadsheet(); }
+
+function _bumpVer_(key) {
+  try {
+    const cache = CacheService.getScriptCache();
+    cache.put(String(key || 'db'), String(Date.now()), 21600);
+  } catch (e) {}
+  return true;
+}
+
 function DB_sheet_(name) {
   const ss = DB_ss_();
   let sh = ss.getSheetByName(name);

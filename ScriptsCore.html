@@ -158,6 +158,17 @@
     if (close) Modal.close();
   });
 
+  document.addEventListener('click', function (e) {
+    var link = e.target.closest && e.target.closest('a[href^="#/"]');
+    if (!link) return;
+    var hash = link.getAttribute('href');
+    if (!hash) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (location.hash === hash) dispatch();
+    else location.hash = hash;
+  });
+
   function saveSession(token, user, caps) {
     Store.token = token || '';
     Store.user = user || null;

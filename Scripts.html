@@ -136,6 +136,16 @@
   }
 
   function wireEvents() {
+    $("sb-import-cedict").addEventListener("click", () => $("btn-import-cedict").click());
+    $("sb-go-novel").addEventListener("click", () => {
+      document.getElementById("novel-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("novel-title").focus();
+    });
+    $("sb-go-episode").addEventListener("click", () => {
+      document.getElementById("episode-panel").scrollIntoView({ behavior: "smooth", block: "start" });
+      $("episode-no").focus();
+    });
+
     $("btn-import-cedict").addEventListener("click", async () => {
       try {
         setStatus("Importing CEDICT...");

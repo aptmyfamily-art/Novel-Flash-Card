@@ -5,9 +5,10 @@
 - [x] Add core UI for novel/episode management, reader hover lookup, and favorite vocab.
 - [x] Add CEDICT import from `MarvNC/cc-cedict-yomitan` latest release with local sheet lookup fallback.
 - [x] Establish canonical agent workflow files (`AGENTS.md`, `GEMINI.md`).
+- [x] Adopt main UI workflow style from template, including sidebar and quick action menu.
 
 ## In Progress
-- [ ] Wire Google Apps Script deployment sync via `clasp` in this repository.
+- [ ] Upgrade reader workflow usability (tokenization and inline multi-character lookup behavior).
 
 ## Planned
 - [ ] Upgrade tokenizer from single-character hover to word segmentation.

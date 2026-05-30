@@ -29,7 +29,28 @@
   </header>
 
   <main class="layout">
-    <section class="panel">
+    <aside class="sidebar">
+      <div class="sb-brand">
+        <div class="sb-logo"><i class="bi bi-book"></i></div>
+        <div>
+          <div class="sb-title">Novel Flashcard</div>
+          <div class="sb-sub">Workspace</div>
+        </div>
+      </div>
+      <nav class="sb-nav">
+        <a href="#novel-panel"><i class="bi bi-collection"></i> นิยาย</a>
+        <a href="#episode-panel"><i class="bi bi-list-ol"></i> ตอน</a>
+        <a href="#reader-panel"><i class="bi bi-translate"></i> Reader</a>
+      </nav>
+      <div class="sb-quick">
+        <div class="sb-quick-title">เมนูด่วน</div>
+        <button type="button" id="sb-import-cedict"><i class="bi bi-database-down"></i> โหลด CEDICT</button>
+        <button type="button" id="sb-go-novel"><i class="bi bi-plus-circle"></i> เพิ่มนิยายใหม่</button>
+        <button type="button" id="sb-go-episode"><i class="bi bi-file-earmark-plus"></i> เพิ่มตอนใหม่</button>
+      </div>
+    </aside>
+
+    <section id="novel-panel" class="panel">
       <h2>นิยาย</h2>
       <form id="novel-form" class="stack">
         <input id="novel-title" placeholder="ชื่อนิยาย" required>
@@ -39,7 +60,7 @@
       <select id="novel-select" size="8"></select>
     </section>
 
-    <section class="panel">
+    <section id="episode-panel" class="panel">
       <h2>ตอน</h2>
       <form id="episode-form" class="stack">
         <input id="episode-no" type="number" min="1" placeholder="ตอนที่" required>
@@ -50,7 +71,7 @@
       <select id="episode-select" size="8"></select>
     </section>
 
-    <section class="panel reader-panel">
+    <section id="reader-panel" class="panel reader-panel">
       <h2>Reader</h2>
       <div id="reader" class="reader"></div>
       <h3>คำที่สนใจ</h3>

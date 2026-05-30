@@ -70,10 +70,75 @@ button {
 
 .layout {
   display: grid;
-  grid-template-columns: 290px 340px 1fr;
+  grid-template-columns: 220px 290px 340px 1fr;
   gap: 12px;
   padding: 12px;
 }
+.sidebar {
+  background: linear-gradient(180deg,#1e1b4b,#312e81);
+  color: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: var(--shadow-md);
+  position: sticky;
+  top: 12px;
+  height: fit-content;
+}
+.sb-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255,255,255,.15);
+}
+.sb-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: linear-gradient(135deg,#6366f1,#a855f7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.sb-title { font-size: 14px; font-weight: 700; }
+.sb-sub { font-size: 11px; opacity: .7; }
+.sb-nav {
+  margin-top: 12px;
+  display: grid;
+  gap: 8px;
+}
+.sb-nav a {
+  color: #fff;
+  text-decoration: none;
+  padding: 10px;
+  border-radius: 10px;
+  background: rgba(255,255,255,.08);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sb-nav a:hover { background: rgba(255,255,255,.18); }
+.sb-quick {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255,255,255,.15);
+  display: grid;
+  gap: 8px;
+}
+.sb-quick-title {
+  font-size: 12px;
+  opacity: .75;
+}
+.sb-quick button {
+  width: 100%;
+  border: 1px solid rgba(255,255,255,.2);
+  background: rgba(255,255,255,.1);
+  color: #fff;
+  border-radius: 10px;
+  padding: 9px 10px;
+  text-align: left;
+}
+.sb-quick button:hover { background: rgba(255,255,255,.2); }
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -139,5 +204,6 @@ textarea { min-height: 94px; resize: vertical; }
 
 @media (max-width: 980px) {
   .layout { grid-template-columns: 1fr; }
+  .sidebar { position: static; }
 }
 </style>

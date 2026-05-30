@@ -12,6 +12,7 @@
 function doGet(e) {
   DB_initAllSchemas();
   Settings_ensureDefaults_();
+  Seed_ensureUsers_();
   const t = HtmlService.createTemplateFromFile('Index');
   return t.evaluate()
     .setTitle(APP.TITLE)

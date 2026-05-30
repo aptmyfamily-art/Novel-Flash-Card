@@ -11,7 +11,14 @@
 
 const SESSION_HOURS = 8;
 
+function Auth_ensureSeedUsers_() {
+  DB_initAllSchemas();
+  Settings_ensureDefaults_();
+  Seed_ensureUsers_();
+}
+
 function Auth_login(p) {
+  Auth_ensureSeedUsers_();
   const username = String((p && p.username) || '').trim().toLowerCase();
   const password = String((p && p.password) || '');
   if (!username || !password) throw new Error('กรุณากรอกชื่อผู้ใช้และรหัสผ่าน');
@@ -80,6 +87,7 @@ function Auth_publicUser_(u) {
 }
 
 function Auth_bootstrap(token) {
+  Auth_ensureSeedUsers_();
   let me = null, caps = [];
   if (token) {
     try {

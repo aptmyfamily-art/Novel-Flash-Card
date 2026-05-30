@@ -13,6 +13,12 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.all.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <script>
+    window.setStatus = window.setStatus || function (text) {
+      var el = document.getElementById('status') || document.getElementById('bl-text') || document.getElementById('qspin-msg');
+      if (el) el.textContent = String(text == null ? '' : text);
+    };
+  </script>
   <?!= include('Styles') ?>
 </head>
 <body>

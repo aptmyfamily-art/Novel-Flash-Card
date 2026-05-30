@@ -9,6 +9,15 @@ function doGet() {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
+function Authorize_drive_probe() {
+  var folder = Files_folder_();
+  return {
+    ok: true,
+    folder_id: folder.getId(),
+    folder_name: folder.getName()
+  };
+}
+
 function _ok(data) { return { ok: true, data: data }; }
 function _err(msg) { return { ok: false, error: String(msg) }; }
 

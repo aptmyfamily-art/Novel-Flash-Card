@@ -1,4 +1,4 @@
-# SHVR Gemini Agent Instructions
+# SHVR Claude Agent Instructions
 
 Use `AGENTS.md` as the canonical instruction file for this repository.
 

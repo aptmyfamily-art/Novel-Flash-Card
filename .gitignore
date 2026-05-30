@@ -1,0 +1,14 @@
+# Apps Script / Clasp
+build/
+.worktrees/
+
+# Gemini / Maestro
+.gemini/
+docs/maestro/state/
+docs/maestro/plans/
+!**/*.md
+
+# OS files
+Thumbs.db
+.DS_Store
+node_modules/

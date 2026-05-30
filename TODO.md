@@ -1,16 +1,17 @@
 # Task List (TODO.md)
 
-## Done
-- [x] Initialize Apps Script scaffold for Novel Flashcard.
-- [x] Add core UI for novel/episode management, reader hover lookup, and favorite vocab.
-- [x] Add CEDICT import from `MarvNC/cc-cedict-yomitan` latest release with local sheet lookup fallback.
-- [x] Establish canonical agent workflow files (`AGENTS.md`, `GEMINI.md`).
-- [x] Adopt main UI workflow style from template, including sidebar and quick action menu.
+## ✅ Done
+- [x] Initial Project Setup (Modular Backend + SPA Frontend).
+- [x] Logging Standard and Audit Trail implementation.
+- [x] PDF Report Generation (4-page official layout).
+- [x] Fix: Blank Page 5 overflow in PDF report.
+- [x] Documentation Standardization (`GEMINI.md`, `PROGRESS.md`, `TODO.md`).
+- [x] **Feature: Homeroom Teacher Settings per Class & Academic Year**
+  - Add Admin UI to assign 2 Homeroom Teachers (ครูประจำชั้น) to each Class/Room for specific Academic Years.
+  - Update Page 4 of the PDF report to dynamically display assigned teacher names and signatures based on Student's Class/Year.
+- [x] Establish stable workflow with mandatory sync rules (Verification Before Completion).
 
-## In Progress
-- [ ] Upgrade reader workflow usability (tokenization and inline multi-character lookup behavior).
+## ⏳ In-Progress
+*(No active tasks)*
 
-## Planned
-- [ ] Upgrade tokenizer from single-character hover to word segmentation.
-- [ ] Add pagination/filter/search for favorites.
-- [ ] Add import status UI with progress and last import timestamp.
+## 📅 Pending / Planned

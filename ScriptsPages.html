@@ -114,7 +114,7 @@
               data: reader.result,
               title: data.title || '',
               replace_existing: !!data.replace_existing
-            }, 120000).then(function (result) {
+            }, 330000).then(function (result) {
               Spinner.hide();
               Modal.close();
               alertSuccess('นำเข้าสำเร็จ', 'เพิ่มข้อมูล ' + formatNum(result.inserted || 0) + ' รายการ');

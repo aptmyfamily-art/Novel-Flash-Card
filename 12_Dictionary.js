@@ -44,18 +44,23 @@ function Dictionary_import_yomitan(user, p) {
     });
   }
 
+  const chunkSize = 500;
   let inserted = 0;
   files.termBanks.forEach(function (file) {
+    const batch = [];
     file.entries.forEach(function (entry, idx) {
-      const mapped = Dictionary_mapTermEntry_(entry, {
+      batch.push(Dictionary_mapTermEntry_(entry, {
         batch_id: batchId,
         source_title: sourceTitle,
         source_file: file.name,
         source_index: idx
-      });
-      DB_insert(SHEETS.DICTIONARY_ENTRIES, mapped);
-      inserted++;
+      }));
+      if (batch.length >= chunkSize) {
+        inserted += DB_insertMany(SHEETS.DICTIONARY_ENTRIES, batch);
+        batch.length = 0;
+      }
     });
+    if (batch.length) inserted += DB_insertMany(SHEETS.DICTIONARY_ENTRIES, batch);
   });
 
   Audit_log_(user, 'dictionary.import_yomitan', 'dictionary', batchId, {
@@ -140,7 +145,7 @@ function Dictionary_mapTermEntry_(entry, meta) {
     sequence: entry.length > 6 && entry[6] != null ? entry[6] : '',
     term_tags: entry.length > 7 && entry[7] != null ? String(entry[7]) : '',
     source_index: meta.source_index,
-    raw_json: JSON.stringify(entry),
+    raw_json: '',
     created_at: cfg_now_()
   };
 }

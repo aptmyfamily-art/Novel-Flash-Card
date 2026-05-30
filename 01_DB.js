@@ -128,6 +128,35 @@ function DB_insert(name, data) {
   return obj;
 }
 
+function DB_insertMany(name, items) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.length) return 0;
+
+  const sh = DB_ensureSchema_(name);
+  const cols = SCHEMAS[name];
+  const keyIdx = cols.indexOf('id') >= 0 ? cols.indexOf('id') : 0;
+  const keyCol = cols[keyIdx];
+  const now = cfg_now_();
+  const rows = list.map(function (data) {
+    const obj = {};
+    cols.forEach(function (c) { obj[c] = (data && c in data) ? data[c] : ''; });
+    if (!obj[keyCol]) obj[keyCol] = (keyCol === 'id' || keyCol === 'token') ? cfg_token_() : '';
+    if ('created_at' in obj && !obj.created_at) obj.created_at = now;
+    if ('updated_at' in obj && !obj.updated_at) obj.updated_at = obj.created_at || now;
+    return cols.map(function (c) {
+      const v = obj[c];
+      if (typeof v === 'object' && v !== null) return JSON.stringify(v);
+      return v == null ? '' : v;
+    });
+  });
+
+  const startRow = sh.getLastRow() + 1;
+  const range = sh.getRange(startRow, 1, rows.length, cols.length);
+  range.setNumberFormat('@');
+  range.setValues(rows);
+  return rows.length;
+}
+
 function DB_update(name, id, patch) {
   const sh = DB_ensureSchema_(name);
   const cols = SCHEMAS[name];

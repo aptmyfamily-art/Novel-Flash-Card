@@ -48,7 +48,7 @@
 
     html += '<div class="toolbar">'
       + '<div class="hero-pill" style="margin:0"><i class="bi bi-shield-check"></i> auth + users + settings + audit ยังอยู่ครบ</div>'
-      + (hasCap('file.manage') ? '<button class="btn btn-primary" id="' + (standalone ? 'import-open-page' : 'import-open-dashboard') + '"><i class="bi bi-upload"></i> นำเข้าพจนานุกรม</button>' : '')
+      + (hasCap('file.manage') ? '<button type="button" class="btn btn-primary" id="' + (standalone ? 'import-open-page' : 'import-open-dashboard') + '"><i class="bi bi-upload"></i> นำเข้าพจนานุกรม</button>' : '')
       + '</div>';
 
     html += '<div class="card"><h3 class="card-title"><i class="bi bi-lightning-charge-fill"></i> เมนูด่วน</h3>'
@@ -79,6 +79,37 @@
       + '<div style="font-size:13px;color:var(--ink-muted)">' + esc(text) + '</div></div>';
   }
 
+  function renderImportProgress(progress) {
+    progress = progress || {};
+    var percent = Number(progress.percent || 0);
+    if (!isFinite(percent)) percent = 0;
+    percent = Math.max(0, Math.min(100, percent));
+    var processed = Number(progress.processed || 0);
+    var total = Number(progress.total || 0);
+    var inserted = Number(progress.inserted || 0);
+    return '<div style="display:flex;flex-direction:column;gap:12px">'
+      + '<div style="font-weight:700;font-size:14px">' + esc(progress.message || 'กำลังนำเข้าข้อมูล') + '</div>'
+      + '<div style="height:12px;background:#e2e8f0;border-radius:999px;overflow:hidden"><div id="dict-import-progress-fill" style="height:100%;width:' + percent + '%;background:linear-gradient(90deg,#0f766e,#14b8a6);transition:width .25s ease"></div></div>'
+      + '<div style="display:flex;justify-content:space-between;gap:12px;font-size:12px;color:var(--ink-muted)"><span id="dict-import-progress-label">' + percent + '%</span><span id="dict-import-progress-count">' + formatNum(processed) + ' / ' + formatNum(total) + '</span></div>'
+      + '<div style="font-size:12px;color:var(--ink-muted)" id="dict-import-progress-meta">นำเข้าแล้ว ' + formatNum(inserted) + ' รายการ' + (progress.current_file ? ' · ' + esc(progress.current_file) : '') + '</div>'
+      + '</div>';
+  }
+
+  function updateImportProgressUI(progress) {
+    progress = progress || {};
+    var percent = Math.max(0, Math.min(100, Number(progress.percent || 0)));
+    var fill = $('#dict-import-progress-fill');
+    var label = $('#dict-import-progress-label');
+    var count = $('#dict-import-progress-count');
+    var meta = $('#dict-import-progress-meta');
+    var status = $('#dict-import-progress-status');
+    if (fill) fill.style.width = percent + '%';
+    if (label) label.textContent = percent + '%';
+    if (count) count.textContent = formatNum(progress.processed || 0) + ' / ' + formatNum(progress.total || 0);
+    if (meta) meta.textContent = 'นำเข้าแล้ว ' + formatNum(progress.inserted || 0) + ' รายการ' + (progress.current_file ? ' · ' + progress.current_file : '');
+    if (status) status.textContent = progress.message || 'กำลังนำเข้าข้อมูล';
+  }
+
   function openDictionaryImportModal() {
     if (!hasCap('file.manage')) {
       alertError('ไม่มีสิทธิ์', 'บัญชีนี้ยังไม่มีสิทธิ์ import พจนานุกรม');
@@ -95,9 +126,13 @@
       title: 'นำเข้าพจนานุกรม',
       html: html,
       large: true,
-      footer: '<button class="btn btn-ghost" data-modal-close>ยกเลิก</button><button class="btn btn-primary" id="dict-import-save"><i class="bi bi-upload"></i> เริ่ม import</button>',
+      footer: '<button type="button" class="btn btn-ghost" data-modal-close>ยกเลิก</button><button type="button" class="btn btn-primary" id="dict-import-save"><i class="bi bi-upload"></i> เริ่ม import</button>',
       onOpen: function () {
-        $('#dict-import-save').addEventListener('click', function () {
+        $('#dict-import-save').addEventListener('click', function (e) {
+          if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
           var form = $('#dict-import-form');
           var file = form && form.file && form.file.files ? form.file.files[0] : null;
           if (!file) {
@@ -106,21 +141,54 @@
           }
 
           var data = formToObj(form);
+          var jobId = 'job_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
           var reader = new FileReader();
           Spinner.show('กำลังอ่านไฟล์พจนานุกรม...');
           reader.onload = function () {
+            Spinner.hide();
+            Modal.open({
+              title: 'กำลังนำเข้าพจนานุกรม',
+              html: '<div id="dict-import-progress-status" style="font-weight:700;font-size:14px;margin-bottom:12px">กำลังส่งข้อมูลไป backend</div>' + renderImportProgress({
+                percent: 2,
+                processed: 0,
+                total: 0,
+                inserted: 0,
+                message: 'กำลังส่งข้อมูลไป backend'
+              }),
+              footer: '<button type="button" class="btn btn-ghost" disabled>กรุณารอจนกว่างานจะเสร็จ</button>'
+            });
+
+            var poller = setInterval(function () {
+              call('dictionary.import_progress', { job_id: jobId }, 10000).then(function (progress) {
+                updateImportProgressUI(progress);
+              }).catch(function () {});
+            }, 1200);
+
             call('dictionary.import_yomitan', {
+              job_id: jobId,
               name: file.name,
               data: reader.result,
               title: data.title || '',
               replace_existing: !!data.replace_existing
             }, 330000).then(function (result) {
+              clearInterval(poller);
+              updateImportProgressUI({
+                percent: 100,
+                processed: result.inserted || 0,
+                total: result.inserted || 0,
+                inserted: result.inserted || 0,
+                current_file: '',
+                message: 'นำเข้าสำเร็จ'
+              });
               Spinner.hide();
-              Modal.close();
-              alertSuccess('นำเข้าสำเร็จ', 'เพิ่มข้อมูล ' + formatNum(result.inserted || 0) + ' รายการ');
-              if (location.hash === '#/import') Routes['#/import']();
-              else Routes['#/dashboard']();
+              setTimeout(function () {
+                Modal.close();
+                alertSuccess('นำเข้าสำเร็จ', 'เพิ่มข้อมูล ' + formatNum(result.inserted || 0) + ' รายการ');
+                if (location.hash === '#/import') Routes['#/import']();
+                else Routes['#/dashboard']();
+              }, 350);
             }).catch(function (e) {
+              clearInterval(poller);
               Spinner.hide();
               alertError('นำเข้าไม่สำเร็จ', e.message);
             });
@@ -138,7 +206,15 @@
   function wireImportButtons() {
     ['#import-open-dashboard', '#import-open-page'].forEach(function (sel) {
       var btn = $(sel);
-      if (btn) btn.addEventListener('click', openDictionaryImportModal);
+      if (btn) {
+        btn.addEventListener('click', function (e) {
+          if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+          }
+          openDictionaryImportModal();
+        });
+      }
     });
   }
 

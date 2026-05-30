@@ -1,3 +1,42 @@
+function Dictionary_progressKey_(jobId) {
+  return 'dictionary_import_progress:' + String(jobId || '');
+}
+
+function Dictionary_progressSet_(jobId, data) {
+  if (!jobId) return;
+  const payload = JSON.stringify(Object.assign({ updated_at: cfg_now_() }, data || {}));
+  try { CacheService.getScriptCache().put(Dictionary_progressKey_(jobId), payload, 21600); } catch (e) {}
+  try { PropertiesService.getScriptProperties().setProperty(Dictionary_progressKey_(jobId), payload); } catch (e) {}
+}
+
+function Dictionary_progressGet_(jobId) {
+  if (!jobId) return null;
+  let payload = '';
+  try { payload = CacheService.getScriptCache().get(Dictionary_progressKey_(jobId)) || ''; } catch (e) {}
+  if (!payload) {
+    try { payload = PropertiesService.getScriptProperties().getProperty(Dictionary_progressKey_(jobId)) || ''; } catch (e) {}
+  }
+  if (!payload) return null;
+  try { return JSON.parse(payload); } catch (e) { return null; }
+}
+
+function Dictionary_import_progress(user, p) {
+  Auth_requireCap(user, 'file.manage');
+  p = p || {};
+  return Dictionary_progressGet_(p.job_id) || {
+    job_id: String(p.job_id || ''),
+    status: 'pending',
+    percent: 0,
+    message: 'กำลังรอเริ่มงาน'
+  };
+}
+
+function Dictionary_progressPercent_(processed, total) {
+  if (!total || total < 1) return 95;
+  const pct = 15 + Math.floor((processed / total) * 80);
+  return Math.max(15, Math.min(95, pct));
+}
+
 function Dictionary_summary(user) {
   Auth_requireCap(user, 'setting.read');
   const rows = DB_readAll(SHEETS.DICTIONARY_ENTRIES);
@@ -25,18 +64,50 @@ function Dictionary_import_yomitan(user, p) {
   Auth_requireCap(user, 'file.manage');
   p = p || {};
 
+  const jobId = String(p.job_id || cfg_uuid_());
   if (!p.data) throw new Error('กรุณาอัปโหลดไฟล์พจนานุกรมก่อนนำเข้า');
 
   const fileName = String(p.name || 'dictionary.zip').trim();
   const titleOverride = String(p.title || '').trim();
   const replaceExisting = p.replace_existing !== false;
-  const blob = Dictionary_blobFromDataUrl_(String(p.data), fileName);
-  const files = Dictionary_extractJsonFiles_(blob, fileName);
 
+  Dictionary_progressSet_(jobId, {
+    job_id: jobId,
+    status: 'preparing',
+    percent: 3,
+    message: 'กำลังเตรียมไฟล์',
+    file_name: fileName
+  });
+
+  const blob = Dictionary_blobFromDataUrl_(String(p.data), fileName);
+
+  Dictionary_progressSet_(jobId, {
+    job_id: jobId,
+    status: 'extracting',
+    percent: 10,
+    message: 'กำลังแตกไฟล์และอ่าน term bank',
+    file_name: fileName
+  });
+
+  const files = Dictionary_extractJsonFiles_(blob, fileName);
   if (!files.termBanks.length) throw new Error('ไม่พบไฟล์ term_bank_*.json ในพจนานุกรมนี้');
 
   const sourceTitle = titleOverride || files.indexTitle || fileName.replace(/\.[^.]+$/, '');
   const batchId = cfg_uuid_();
+  const totalEntries = files.termBanks.reduce(function (sum, file) {
+    return sum + ((file.entries && file.entries.length) || 0);
+  }, 0);
+
+  Dictionary_progressSet_(jobId, {
+    job_id: jobId,
+    status: replaceExisting ? 'replacing' : 'importing',
+    percent: 14,
+    message: replaceExisting ? 'กำลังล้างข้อมูล source เดิม' : 'เริ่มนำเข้าข้อมูล',
+    source_title: sourceTitle,
+    total: totalEntries,
+    processed: 0,
+    inserted: 0
+  });
 
   if (replaceExisting) {
     DB_deleteWhere(SHEETS.DICTIONARY_ENTRIES, function (row) {
@@ -46,6 +117,8 @@ function Dictionary_import_yomitan(user, p) {
 
   const chunkSize = 500;
   let inserted = 0;
+  let processed = 0;
+
   files.termBanks.forEach(function (file) {
     const batch = [];
     file.entries.forEach(function (entry, idx) {
@@ -55,12 +128,40 @@ function Dictionary_import_yomitan(user, p) {
         source_file: file.name,
         source_index: idx
       }));
+
       if (batch.length >= chunkSize) {
         inserted += DB_insertMany(SHEETS.DICTIONARY_ENTRIES, batch);
+        processed += batch.length;
+        Dictionary_progressSet_(jobId, {
+          job_id: jobId,
+          status: 'importing',
+          percent: Dictionary_progressPercent_(processed, totalEntries),
+          message: 'กำลังบันทึก ' + file.name,
+          source_title: sourceTitle,
+          total: totalEntries,
+          processed: processed,
+          inserted: inserted,
+          current_file: file.name
+        });
         batch.length = 0;
       }
     });
-    if (batch.length) inserted += DB_insertMany(SHEETS.DICTIONARY_ENTRIES, batch);
+
+    if (batch.length) {
+      inserted += DB_insertMany(SHEETS.DICTIONARY_ENTRIES, batch);
+      processed += batch.length;
+      Dictionary_progressSet_(jobId, {
+        job_id: jobId,
+        status: 'importing',
+        percent: Dictionary_progressPercent_(processed, totalEntries),
+        message: 'กำลังบันทึก ' + file.name,
+        source_title: sourceTitle,
+        total: totalEntries,
+        processed: processed,
+        inserted: inserted,
+        current_file: file.name
+      });
+    }
   });
 
   Audit_log_(user, 'dictionary.import_yomitan', 'dictionary', batchId, {
@@ -69,8 +170,21 @@ function Dictionary_import_yomitan(user, p) {
     inserted: inserted
   });
 
+  Dictionary_progressSet_(jobId, {
+    job_id: jobId,
+    status: 'done',
+    percent: 100,
+    message: 'นำเข้าสำเร็จ',
+    source_title: sourceTitle,
+    total: totalEntries,
+    processed: processed,
+    inserted: inserted,
+    batch_id: batchId
+  });
+
   return {
     ok: true,
+    job_id: jobId,
     batch_id: batchId,
     source_title: sourceTitle,
     source_files: files.termBanks.map(function (x) { return x.name; }),
